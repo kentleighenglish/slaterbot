@@ -1,3 +1,15 @@
-import Interfaces;
+import logging;
+import logging.config
 
-interface = Interfaces.Handler();
+import request;
+import interfaces;
+
+logging.config.fileConfig('logging.conf');
+
+interface = interfaces.Handler();
+
+def run():
+	logging.info("Starting bot");
+
+	
+run();
