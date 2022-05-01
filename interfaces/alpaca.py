@@ -17,7 +17,7 @@ secret = os.environ.get("ALPACA_SECRET")
 class Alpaca():
     """Interface for interacting with Alpaca API."""
 
-    def buy(self, symbol, qty=1, type="market", timeInForce="fok"):
+    def buy(self, symbol, qty, type, timeInForce):
         """Trigger a buy request on the Alpaca API."""
         payload = {
             symbol: symbol,
@@ -35,7 +35,7 @@ class Alpaca():
 
         print(response)
 
-    def sell(self, symbol, qty=1, type="market", timeInForce="gtc"):
+    def sell(self, symbol, qty, type, timeInForce):
         """Trigger a sell request on the Alpaca API."""
         payload = {
             symbol: symbol,
