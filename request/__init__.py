@@ -1,7 +1,7 @@
 """
 This script holds the class for generating various HTTP requests.
 
-
+Use it to make HTTP request calls easier
 """
 import logging
 import requests
