@@ -1,15 +1,21 @@
-import logging;
+"""
+The entry file for slaterbot.
+
+This is the file to execute when running
+"""
+import logging
 import logging.config
 
-import request;
-import interfaces;
+import interfaces
 
-logging.config.fileConfig('logging.conf');
+logging.config.fileConfig('logging.conf')
 
-interface = interfaces.Handler();
+interface = interfaces.Handler()
+
 
 def run():
-	logging.info("Starting bot");
+    """Start slaterbot."""
+    logging.info("Starting bot")
 
-	
-run();
+
+run()
