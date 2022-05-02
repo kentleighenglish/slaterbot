@@ -6,59 +6,67 @@ and sume more text like here. Wow.
 """
 import os
 import request
+import logging
 import base64
 
-host = os.environ.get("ALPACA_HOST")
+host = os.environ.get("ALPACA_URL")
 id = os.environ.get("ALPACA_ACCOUNTID")
 key = os.environ.get("ALPACA_KEY")
 secret = os.environ.get("ALPACA_SECRET")
 
+__all__ = ["buy", "sell"]
 
-class Alpaca():
-    """Interface for interacting with Alpaca API."""
 
-    def buy(self, symbol, qty, type, timeInForce):
-        """Trigger a buy request on the Alpaca API."""
-        payload = {
-            symbol: symbol,
-            "side": "buy",
-            qty: qty,
-            type: type,
-            "time_in_force": timeInForce
-        }
+def buy(symbol, qty, type, timeInForce):
+    """Trigger a buy request on the Alpaca API."""
+    payload = {
+        "symbol": symbol,
+        "side": "buy",
+        "qty": qty,
+        "type": type,
+        "time_in_force": timeInForce
+    }
 
-        response = self._request(
-            "get",
-            "/v1/trading/accounts/{account_id}/orders",
-            payload
-        )
+    response = _request(
+        "get",
+        "/v1/trading/accounts/{account_id}/orders",
+        payload
+    )
 
-        print(response)
+    print(response)
 
-    def sell(self, symbol, qty, type, timeInForce):
-        """Trigger a sell request on the Alpaca API."""
-        payload = {
-            symbol: symbol,
-            "side": "sell",
-            qty: qty,
-            type: type,
-            "time_in_force": timeInForce
-        }
 
-        response = self._request(
-            "get",
-            "/v1/trading/accounts/{account_id}/orders",
-            payload
-        )
+def sell(symbol, qty, type, timeInForce):
+    """Trigger a sell request on the Alpaca API."""
+    payload = {
+        "symbol": symbol,
+        "side": "sell",
+        "qty": qty,
+        "type": type,
+        "time_in_force": timeInForce
+    }
 
-        print(response)
+    response = _request(
+        "get",
+        "/v1/trading/accounts/{account_id}/orders",
+        payload
+    )
 
-    def _request(method, path, data={}):
-        """Handle generic requests for the Alpaca API."""
-        headers = {
-            "Authorization": base64.b64encode(key + ":" + secret)
-        }
+    print(response)
 
-        response = request[method](host + path, data, headers)
 
-        return response
+def _request(method, path, data={}):
+    """Handle generic requests for the Alpaca API."""
+    authInput = bytearray(key + ":" + secret, "utf-8")
+    headers = {
+        "Authorization": base64.standard_b64encode(authInput)
+    }
+    methodFunc = getattr(request, method)
+
+    if (methodFunc):
+        response = methodFunc(host + path, data, headers)
+    else:
+        logging.error("Could not find %s method for request", method)
+        return
+
+    return response
