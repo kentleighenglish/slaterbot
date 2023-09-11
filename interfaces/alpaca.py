@@ -8,9 +8,10 @@ import os
 import request
 import logging
 import base64
+# from requests.auth import HTTPBasicAuth
 
 host = os.environ.get("ALPACA_URL")
-id = os.environ.get("ALPACA_ACCOUNTID")
+account_id = os.environ.get("ALPACA_ACCOUNTID")
 key = os.environ.get("ALPACA_KEY")
 secret = os.environ.get("ALPACA_SECRET")
 
@@ -28,7 +29,7 @@ def buy(symbol, qty, type, timeInForce):
     }
 
     response = _request(
-        "get",
+        "post",
         "/v1/trading/accounts/{account_id}/orders",
         payload
     )
@@ -47,7 +48,7 @@ def sell(symbol, qty, type, timeInForce):
     }
 
     response = _request(
-        "get",
+        "post",
         "/v1/trading/accounts/{account_id}/orders",
         payload
     )
@@ -57,14 +58,17 @@ def sell(symbol, qty, type, timeInForce):
 
 def _request(method, path, data={}):
     """Handle generic requests for the Alpaca API."""
-    authInput = bytearray(key + ":" + secret, "utf-8")
+    parsedPath = path.format(account_id=account_id)
+
     headers = {
-        "Authorization": base64.standard_b64encode(authInput)
+        "APCA-API-KEY-ID": key,
+        "APCA-API-SECRET-KEY": secret
     }
+
     methodFunc = getattr(request, method)
 
     if (methodFunc):
-        response = methodFunc(host + path, data, headers)
+        response = methodFunc(url=host + parsedPath, data=data, headers=headers)
     else:
         logging.error("Could not find %s method for request", method)
         return
