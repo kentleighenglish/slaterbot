@@ -1,4 +1,2 @@
-__pycache__/
-old/
+node_modules/
 .env
-.mypy_cache/
