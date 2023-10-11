@@ -1,13 +1,13 @@
-const log = require("debug")("bot:main");
+import debugFunc from "debug";
+const log = debugFunc("bot:main");
 
-const Alpaca = require("@alpacahq/alpaca-trade-api");
+import Alpaca from "@alpacahq/alpaca-trade-api";
+import Watchlist from "./watchlist.js";
 
 const symbols = (process.env.SYMBOLS||"").split(",").map(s => s.trim());
 const positions = [];
 let account = null;
 let balance = null;
-
-let watchlist = null;
 
 const watchers = {};
 
@@ -19,57 +19,39 @@ const alpaca = new Alpaca({
 	paper: true,
 });
 
-const createWatchlist = async () => {
-  try {
-   const watchlists = await alpaca.getWatchlists();
-    
-    watchlists.forEach(w => {
-      if (w.name === "slaterbot") {
-        watchlist = w;
-      }
-    });
-    
-    if (!watchlist) {
-      const response = await alpaca.addWatchlist("slaterbot", []);
-      watchlist = response;
-    }
-  } catch(e) {
-    console.error(e);
-    
-    return;
-  }
-}
+const watchlist = new Watchlist(alpaca);
 
 const checkSymbol = async (symbol) => {
-  log (`Checking data for ${symbol}`);
-  let closePosition = false;
-  const response = await alpaca.getLatestTrade(symbol);
-  
-  log(response);
-  
-  if (!closePosition) {
-    setTimeout(() => checkSymbol(symbol), CHECK_INTERVAL);
-  }
+	log (`Checking data for ${symbol}`);
+	let closePosition = false;
+	const response = await alpaca.getLatestTrade(symbol);
+	
+	log(response);
+	
+	if (!closePosition) {
+		setTimeout(() => checkSymbol(symbol), CHECK_INTERVAL);
+	}
 }
 
 const watchSymbol = async (symbol) => {
 	log(`Watching symbol: ${symbol}`);
-  
-  log (`Adding ${symbol} to watchlist`);
-  //await alpaca.addToWatchlist(watchlist.id, symbol);
-  
-  // initialise loop
-  checkSymbol(symbol);
+	
+	log (`Adding ${symbol} to watchlist`);
+
+	await watchlist.addToWatchlist(symbol);
+	
+	// initialise loop
+	checkSymbol(symbol);
 }
 
 const init = async () => {
 	log("Starting bot");
-  
-  await createWatchlist();
-
+	
+	await watchlist.fetchWatchlist();
+	
 	account = await alpaca.getAccount();
 	balance = account.equity;
-
+	
 	for (let symbol of symbols) {
 		watchSymbol(symbol);
 	}
