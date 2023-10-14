@@ -1,12 +1,13 @@
 
 class Watchlist {
     _alpaca = null;
+    watchlist = null;
 
     constructor(alpaca) {
         this._alpaca = alpaca;
     }
 
-    async fetchWatchlist() {
+    async assertWatchlist() {
         try {
             const watchlists = await this._alpaca.getWatchlists();
             let watchlist;
@@ -34,8 +35,8 @@ class Watchlist {
         const existing = this.watchlist.assets.find(a => a.symbol === symbol);
     
         if (!existing) {
-            await this._alpaca.addToWatchlist(watchlist.id, symbol);
-            await fetchWatchlist();
+            await this._alpaca.addToWatchlist(this.watchlist.id, symbol);
+            await this.assertWatchlist();
         }
     }
 }

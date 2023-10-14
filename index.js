@@ -1,61 +1,40 @@
+import http from "http";
+import express from "express";
+import { resolve } from "path";
 import debugFunc from "debug";
+import { Server } from "socket.io";
+
+import Engine from "./engine/index.js";
+
 const log = debugFunc("bot:main");
 
-import Alpaca from "@alpacahq/alpaca-trade-api";
-import Watchlist from "./watchlist.js";
+const app = express();
+const server = http.createServer(app);
+const engine = new Engine();
 
-const symbols = (process.env.SYMBOLS||"").split(",").map(s => s.trim());
-const positions = [];
-let account = null;
-let balance = null;
-
-const watchers = {};
-
-const CHECK_INTERVAL = 5000;
-
-const alpaca = new Alpaca({
-	keyId: process.env.ALPACA_KEY,
-	secretKey: process.env.ALPACA_SECRET,
-	paper: true,
+const io = new Server(server, {
+	path: "/socket"
 });
 
-const watchlist = new Watchlist(alpaca);
+engine.subscribe((data) => {
+	io.emit("update", data);
+})
 
-const checkSymbol = async (symbol) => {
-	log (`Checking data for ${symbol}`);
-	let closePosition = false;
-	const response = await alpaca.getLatestTrade(symbol);
-	
-	log(response);
-	
-	if (!closePosition) {
-		setTimeout(() => checkSymbol(symbol), CHECK_INTERVAL);
-	}
-}
+io.on("connection", (socket) => {
+	log(`connection: ${socket.id}`);
 
-const watchSymbol = async (symbol) => {
-	log(`Watching symbol: ${symbol}`);
-	
-	log (`Adding ${symbol} to watchlist`);
+	// @todo: Handle socket connection
+	console.log(engine.output);
+	socket.emit("update", engine.output);
+});
 
-	await watchlist.addToWatchlist(symbol);
-	
-	// initialise loop
-	checkSymbol(symbol);
-}
+// normal routes
+app.use(express.static("public"));
 
-const init = async () => {
-	log("Starting bot");
-	
-	await watchlist.fetchWatchlist();
-	
-	account = await alpaca.getAccount();
-	balance = account.equity;
-	
-	for (let symbol of symbols) {
-		watchSymbol(symbol);
-	}
-	log("Bot initialised");
-}
+app.get("*", async (request, response) => {
+	response.send()
+})
 
-init();
+server.listen(process.env.PORT || 3000, () => {
+	log(`Server running on ${process.env.PORT}`)
+});
