@@ -1,29 +1,25 @@
 import { Server } from "socket.io";
 import { createResolver, defineNuxtModule, addServerHandler } from "nuxt/kit";
+import Engine from "../engine";
 
 export default defineNuxtModule((options, nuxt) => {
-    nuxt.hook('listen', server => {
-        const io = new Server(server, {
-            path: options?.socketPath,
-        });
-    
-        nuxt.hook('close', () => io.close())
-        
-        io.on('connection', () => {
-            console.log("CONNECTION");
-        })
-    })
+	nuxt.hook("listen", server => {
+		const engine = new Engine();
 
-//   meta: {
-//     name: "socket"
-//   },
-//   setup () {
-//     const { resolve } = createResolver(import.meta.url)
+		const io = new Server(server, {
+			path: options?.socketPath,
+		});
 
-//     // Add an API route
-//     addServerHandler({
-//       route: '/api/hello',
-//       handler: resolve('./runtime/api-route')
-//     })
-//   }
+		nuxt.hook("close", () => io.close())
+
+		io.on("connection", (socket) => {
+			console.log("CONNECTION");
+
+			socket.emit("update", engine.output);
+		});
+
+		engine.subscribe((data: any) => {
+			io.emit("update", data);
+		});
+	})
 })

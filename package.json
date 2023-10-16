@@ -16,6 +16,9 @@
     "vue-router": "^4.2.5"
   },
   "dependencies": {
+    "@alpacahq/alpaca-trade-api": "^3.0.1",
+    "debug": "^4.3.4",
+    "moment": "^2.29.4",
     "socket.io": "^4.7.2",
     "socket.io-client": "^4.7.2"
   }

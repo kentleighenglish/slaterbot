@@ -12,4 +12,5 @@ export default defineNuxtConfig({
       socketPath,
     },
   },
+  watch: ["@/engine/*"]
 })
