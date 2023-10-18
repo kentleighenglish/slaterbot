@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, inject } from "vue";
 const { $socket } = useNuxtApp();
 
 const engineData = ref({});
@@ -11,11 +11,13 @@ onMounted(() => {
 
   $socket.connect();
 });
+
+useHead({
+  titleTemplate: (titleChunk) => {
+    return titleChunk ? `Slaterbot | ${titleChunk}` : "Slaterbot";
+  }
+});
 </script>
 <template>
-  <div>
-    <h1>Slaterbot</h1>
-    <DataDisplay title="Positions" />
-    {{ engineData }}
-  </div>
+  <NuxtPage :engineData="engineData" />
 </template>

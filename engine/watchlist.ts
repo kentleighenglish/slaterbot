@@ -1,11 +1,12 @@
 import debugFunc from "debug";
+import Alpaca from "@alpacahq/alpaca-trade-api";
 const log = debugFunc("bot:engine:watchlist");
 
 export default class Watchlist {
-	_alpaca = null;
-	watchlist = null;
+	_alpaca: Alpaca;
+	watchlist: any = null;
 
-	constructor(alpaca) {
+	constructor(alpaca: Alpaca) {
 		this._alpaca = alpaca;
 	}
 
@@ -15,7 +16,7 @@ export default class Watchlist {
 			const watchlists = await this._alpaca.getWatchlists();
 			let watchlist;
 
-			watchlists.forEach(w => {
+			watchlists.forEach((w: any) => {
 				if (w.name === "slaterbot") {
 					watchlist = w;
 				}
@@ -23,7 +24,7 @@ export default class Watchlist {
 
 			if (!watchlist) {
 				log("Watchlist not found, adding new one");
-				const response = await this._alpaca.addWatchlist("slaterbot", []);
+				const response = await this._alpaca.addWatchlist("slaterbot");
 				watchlist = response;
 			}
 
@@ -36,7 +37,8 @@ export default class Watchlist {
 		}
 	}
 
-	async addToWatchlist(symbol) {
+	async addToWatchlist(symbol: string) {
+		log (`Adding ${symbol} to watchlist`);
 		const existing = this.watchlist.assets.find(a => a.symbol === symbol);
 
 		if (!existing) {

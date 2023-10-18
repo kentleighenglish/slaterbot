@@ -6,16 +6,16 @@ import Watchlist from "./watchlist";
 const log = debugFunc("bot:engine");
 
 export default class Engine {
-	_alpaca = null;
-	_subscribers = [];
+	_alpaca: Alpaca;
+	_subscribers: Function[] = [];
 
-	account = null;
+	account: any = null;
 	watchers = {};
 	symbols = (process.env.SYMBOLS||"").split(",").map(s => s.trim());
-	watchlist = null;
+	watchlist: Watchlist;
 
 	positions = [];
-	dataset = {};
+	dataset: { [key: string]: any } = {};
 
 	get output() {
 		return {
@@ -29,9 +29,14 @@ export default class Engine {
 	}
 
 	constructor() {
+		const { ALPACA_KEY, ALPACA_SECRET } = process.env;
+		if (!ALPACA_KEY || !ALPACA_SECRET) {
+			throw "ALPACA_KEY and ALPACA_SECRET need to be defined";
+		}
+
 		this._alpaca = new Alpaca({
-			keyId: process.env.ALPACA_KEY,
-			secretKey: process.env.ALPACA_SECRET,
+			keyId: process.env.ALPACA_KEY as string,
+			secretKey: process.env.ALPACA_SECRET as string,
 			paper: true,
 		});
 
@@ -49,17 +54,19 @@ export default class Engine {
 		log("Engine started");
 	}
 
-	async runCheck(symbol) {
+	async runCheck() {
+		const interval = Number(process.env.INTERVAL as string) || 5000;
+
 		log("Running check");
 		this.account = await this._alpaca.getAccount();
 
-		await this.updateSymbols(symbol);
+		await this.updateSymbols();
 
 		// @todo clear positions
 
 		log("Dispatching update");
 		this.dispatch(this.output);
-		setTimeout(() => this.runCheck(), process.env.INTERVAL || 5000);
+		setTimeout(() => this.runCheck(), interval);
 	}
 
 	async updateSymbols() {
@@ -76,8 +83,7 @@ export default class Engine {
 			await this.watchlist.addToWatchlist(symbol);
 
 			log (`Updating data for ${symbol}`);
-			const latestTrade = latestTrades.get(symbol);
-			console.log(latestTrade);
+			const latestTrade: any = latestTrades.get(symbol);
 
 			this.dataset[symbol] = {
 				value: latestTrade.Price,
@@ -86,12 +92,12 @@ export default class Engine {
 		}
 	}
 
-	dispatch(data) {
+	dispatch(data: object) {
 		for (var i = 0; i < this._subscribers.length; i++)
 		this._subscribers[i](data);
 	}
 
-	subscribe(callback) {
+	subscribe(callback: (data: any) => {}) {
 		this._subscribers.push(callback);
 	}
 }
