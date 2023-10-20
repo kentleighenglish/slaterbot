@@ -19,8 +19,10 @@
     "@alpacahq/alpaca-trade-api": "^3.0.1",
     "@types/debug": "^4.1.9",
     "debug": "^4.3.4",
+    "google-finance": "^0.1.12",
     "moment": "^2.29.4",
     "socket.io": "^4.7.2",
-    "socket.io-client": "^4.7.2"
+    "socket.io-client": "^4.7.2",
+    "yahoo-finance": "^0.3.8"
   }
 }

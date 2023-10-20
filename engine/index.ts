@@ -5,6 +5,8 @@ import moment from "moment";
 import Watchlist from "./watchlist";
 const log = debugFunc("bot:engine");
 
+import * as google from "./historical";
+
 export default class Engine {
 	_alpaca: Alpaca;
 	_subscribers: Function[] = [];
@@ -74,12 +76,12 @@ export default class Engine {
 		const symbols = this.symbols;
 
 		const latestTrades = await this._alpaca.getLatestTrades(symbols);
+		const trajectory = await this.getSymbolsTrajectory();
 
 		const end = moment().toISOString();
 		const start = moment().subtract(5, "minutes").toISOString();
 
 		for (let symbol of symbols) {
-			log (`Adding ${symbol} to watchlist`);
 			await this.watchlist.addToWatchlist(symbol);
 
 			log (`Updating data for ${symbol}`);
@@ -90,6 +92,10 @@ export default class Engine {
 				timestamp: latestTrade.Timestamp
 			}
 		}
+	}
+
+	async getSymbolsTrajectory() {
+		const googleLongHistorical = await google.getLong(this.symbols);
 	}
 
 	dispatch(data: object) {
