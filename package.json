@@ -18,11 +18,13 @@
   "dependencies": {
     "@alpacahq/alpaca-trade-api": "^3.0.1",
     "@types/debug": "^4.1.9",
+    "@types/lodash": "^4.14.200",
+    "cheerio": "^1.0.0-rc.12",
     "debug": "^4.3.4",
-    "google-finance": "^0.1.12",
+    "lodash": "^4.17.21",
     "moment": "^2.29.4",
     "socket.io": "^4.7.2",
     "socket.io-client": "^4.7.2",
-    "yahoo-finance": "^0.3.8"
+    "yahoo-finance2": "^2.8.1"
   }
 }

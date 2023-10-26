@@ -4,11 +4,10 @@ import Engine from "../engine";
 
 export default defineNuxtModule((options, nuxt) => {
 	nuxt.hook("listen", server => {
-		const engine = new Engine();
-
 		const io = new Server(server, {
 			path: options?.socketPath,
 		});
+		const engine = new Engine(io);
 
 		nuxt.hook("close", () => io.close())
 

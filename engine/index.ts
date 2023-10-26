@@ -1,14 +1,16 @@
 import debugFunc from "debug";
 import Alpaca from "@alpacahq/alpaca-trade-api";
+import { Server } from "socket.io";
 import moment from "moment";
 
 import Watchlist from "./watchlist";
 const log = debugFunc("bot:engine");
 
-import * as google from "./historical";
+import { runAnalysis } from "./analysis";
 
 export default class Engine {
 	_alpaca: Alpaca;
+	_io: Server;
 	_subscribers: Function[] = [];
 
 	account: any = null;
@@ -30,7 +32,7 @@ export default class Engine {
 
 	}
 
-	constructor() {
+	constructor(io: Server) {
 		const { ALPACA_KEY, ALPACA_SECRET } = process.env;
 		if (!ALPACA_KEY || !ALPACA_SECRET) {
 			throw "ALPACA_KEY and ALPACA_SECRET need to be defined";
@@ -41,6 +43,7 @@ export default class Engine {
 			secretKey: process.env.ALPACA_SECRET as string,
 			paper: true,
 		});
+		this._io = io;
 
 		this.watchlist = new Watchlist(this._alpaca);
 
@@ -52,7 +55,8 @@ export default class Engine {
 
 		await this.watchlist.assertWatchlist();
 
-		this.runCheck();
+		runAnalysis();
+		// this.runCheck();
 		log("Engine started");
 	}
 
@@ -95,7 +99,9 @@ export default class Engine {
 	}
 
 	async getSymbolsTrajectory() {
-		const googleLongHistorical = await google.getLong(this.symbols);
+		// const longHistorical = await historical.getLong(this.symbols);
+
+		// log(longHistorical);
 	}
 
 	dispatch(data: object) {
