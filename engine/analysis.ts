@@ -4,23 +4,17 @@ import moment, { Moment } from "moment";
 import debugFunc from "debug";
 import * as cheerio from "cheerio";
 import { get, set } from "lodash";
+import fileCache from "node-file-cache";
+import timezones from "timezone-abbr-offsets";
+
+const cache = fileCache.create();
 
 const log = debugFunc("bot:engine:analysis");
-
-const timezones = {
-	EST: -5,
-	EDT: -4,
-	CST: -6,
-	CDT: -5,
-	MST: -7,
-	MDT: -6,
-	PST: -8,
-	PDT: -7
-};
 
 const avg = (array: number[]) => array.reduce((acc, num) => acc + num, 0) / array.length;
 
 const parseEarningsDate = (earningsDate: string): Moment => {
+	log(`Parsing date: ${earningsDate}`);
 	const match = earningsDate.match(
 		/^([A-z]{3})\s(\d+),\s(\d+),\s(\d+)\s(AM|PM)([A-Z]{3})$/
 	) as any[];
@@ -33,8 +27,10 @@ const parseEarningsDate = (earningsDate: string): Moment => {
 	date.minute(0);
 	date.second(0);
 
-	if (timezones[timezone]) {
-		date.utcOffset(timezones[timezone]);
+	const tz = get(timezones, timezone, null);
+
+	if (tz) {
+		date.utcOffset(tz);
 	}
 
 	if (meridiem === "AM") {
@@ -69,6 +65,7 @@ const getTrending = async () => {
 	return quotes.map((quote) => quote?.symbol);
 };
 
+type PriceRow = { [key: string]: any };
 const getHistoricalPrice = async (symbols: string[]) => {
 	log(`Fetching historical price for ${symbols}`);
 	const period2 = moment().format("YYYY-MM-DD");
@@ -83,13 +80,13 @@ const getHistoricalPrice = async (symbols: string[]) => {
 			interval: "1mo",
 		});
 
-		out[symbol] = response.reduce((acc, point) => {
+		const symbolData = response.reduce((acc: PriceRow, point) => {
 			const date = moment(point.date);
 
 			const q = date.quarter();
 			const year = date.year();
 
-			const quarter = get(acc, `${year}.${q}`, []);
+			const quarter: number[] = get(acc, `${year}.${q}`, []);
 
 			quarter.push(point.close || point.open);
 
@@ -101,14 +98,16 @@ const getHistoricalPrice = async (symbols: string[]) => {
 			return acc;
 		}, {});
 
-		// return out.reduce((acc: { [key: string]}, year: { [key: string]: number[] }) => {
-		// 	acc[year] = Object.keys(year).reduce((acc2, quarter) => ({
-		// 		...acc2,
-		// 		[quarter]: avg(year[quarter])
-		// 	}), {});
+		out[symbol] = Object.keys(symbolData).reduce((acc: PriceRow, year) => {
+			const quarters = symbolData[year];
 
-		// 	return acc;
-		// });
+			acc[year] = Object.keys(quarters).reduce((acc2, q) => ({
+				...acc2,
+				[q]: avg(quarters[q])
+			}), {});
+
+			return acc;
+		}, {});
 
 		return out;
 	}, Promise.resolve({}));
@@ -117,6 +116,8 @@ const getHistoricalPrice = async (symbols: string[]) => {
 };
 
 type EpsRow = { [key: string]: any };
+type EpsQuarter = { 1?: number, 2?: number, 3?: number, 4?: number };
+type SymbolData = { [key: string]: EpsQuarter };
 const getHistoricalEps = async (symbols: string[]) => {
 	const to = moment().format("YYYY-MM-DD");
 	const from = moment().subtract(3, "years").format("YYYY-MM-DD");
@@ -125,16 +126,25 @@ const getHistoricalEps = async (symbols: string[]) => {
 	const yahooResults = await symbols.reduce(async (pr, symbol) => {
 		const out: { [key: string]: any } = await pr;
 
-		const response = await fetch(
-			`https://finance.yahoo.com/calendar/earnings?symbol=${symbol}`
-		);
-		const html = await response.text();
+		let responseHtml = cache.get(`historicalEps_${symbol}`);
 
-		const doc = cheerio.load(html);
+		if (!responseHtml) {
+			const response = await fetch(
+				`https://finance.yahoo.com/calendar/earnings?symbol=${symbol}`
+			);
+
+			responseHtml = await response.text();
+
+			cache.set(`historicalEps_${symbol}`, responseHtml, {
+				life: 2592000
+			});
+		}
+
+		const doc = cheerio.load(responseHtml);
 
 		const body = doc("table tbody tr").toArray();
 
-		const symbolData = {};
+		const symbolData: SymbolData = {};
 
 		body.forEach((row) => {
 			const tr = cheerio.load(row);
@@ -161,7 +171,7 @@ const getHistoricalEps = async (symbols: string[]) => {
 
 				symbolData[year] = {
 					...(symbolData[year] || {}),
-					[quarter]: outputRow["EPS Estimate"]
+					[quarter]: outputRow["EPS Estimate"] === "-" ? null : Number(outputRow["EPS Estimate"])
 				}
 			}
 		});
@@ -191,8 +201,9 @@ export const runAnalysis = async () => {
 	log("Trending:", trending);
 
 	const historicalPrice = await getHistoricalPrice(trending);
-	console.log(JSON.stringify(historicalPrice));
-	// const historicalEps = await getHistoricalEps(trending);
+	const historicalEps = await getHistoricalEps(trending);
+
+	console.log(historicalPrice, historicalEps);
 
 	log("DONE");
 
