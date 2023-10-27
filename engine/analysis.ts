@@ -3,20 +3,28 @@ import yahooFinance from "yahoo-finance2";
 import moment, { Moment } from "moment";
 import debugFunc from "debug";
 import * as cheerio from "cheerio";
-import { get, set } from "lodash";
+import { get, set, reduce } from "lodash";
 import fileCache from "node-file-cache";
 import timezones from "timezone-abbr-offsets";
+import { resolve } from "path";
 
-const cache = fileCache.create();
+type HistoricalQuarters = { 1?: number, 2?: number, 3?: number, 4?: number };
+type HistoricalYear = { [key: string]: HistoricalQuarters };
+type HistoricalData = {
+	[key: string]: HistoricalYear
+}
+
+const cache = fileCache.create({
+	file: resolve("./.cache")
+});
 
 const log = debugFunc("bot:engine:analysis");
 
-const avg = (array: number[]) => array.reduce((acc, num) => acc + num, 0) / array.length;
+const arrayAvg = (array: number[]) => array.reduce((acc, num) => acc + num, 0) / array.length;
 
 const parseEarningsDate = (earningsDate: string): Moment => {
-	log(`Parsing date: ${earningsDate}`);
 	const match = earningsDate.match(
-		/^([A-z]{3})\s(\d+),\s(\d+),\s(\d+)\s(AM|PM)([A-Z]{3})$/
+		/^([A-z]{3})\s(\d+),\s(\d+),\s(\d+)\s(AM|PM)([A-Z]{3,4})$/
 	) as any[];
 	const [wholeMatch, month, day, year, time24, meridiem, timezone] = match;
 
@@ -66,12 +74,12 @@ const getTrending = async () => {
 };
 
 type PriceRow = { [key: string]: any };
-const getHistoricalPrice = async (symbols: string[]) => {
-	log(`Fetching historical price for ${symbols}`);
+const getHistoricalPrice = async (symbols: string[]): Promise<HistoricalData> => {
 	const period2 = moment().format("YYYY-MM-DD");
 	const period1 = moment().subtract(3, "years").format("YYYY-MM-DD");
 
 	const yahooResults = await symbols.reduce(async (pr, symbol) => {
+		log(`Fetching historical price for ${symbol}`);
 		const out: { [key: string]: any } = await pr;
 
 		const response = await yahooFinance.historical(symbol, {
@@ -98,12 +106,10 @@ const getHistoricalPrice = async (symbols: string[]) => {
 			return acc;
 		}, {});
 
-		out[symbol] = Object.keys(symbolData).reduce((acc: PriceRow, year) => {
-			const quarters = symbolData[year];
-
-			acc[year] = Object.keys(quarters).reduce((acc2, q) => ({
+		out[symbol] = reduce(symbolData,(acc: PriceRow, quarters, year) => {
+			acc[year] = reduce(quarters, (acc2, q, key) => ({
 				...acc2,
-				[q]: avg(quarters[q])
+				[key]: arrayAvg(q)
 			}), {});
 
 			return acc;
@@ -118,12 +124,13 @@ const getHistoricalPrice = async (symbols: string[]) => {
 type EpsRow = { [key: string]: any };
 type EpsQuarter = { 1?: number, 2?: number, 3?: number, 4?: number };
 type SymbolData = { [key: string]: EpsQuarter };
-const getHistoricalEps = async (symbols: string[]) => {
+const getHistoricalEps = async (symbols: string[]): Promise<HistoricalData> => {
 	const to = moment().format("YYYY-MM-DD");
 	const from = moment().subtract(3, "years").format("YYYY-MM-DD");
-	log("Fetching EPS");
 
 	const yahooResults = await symbols.reduce(async (pr, symbol) => {
+		log(`Fetching historical EPS for ${symbol}`);
+
 		const out: { [key: string]: any } = await pr;
 
 		let responseHtml = cache.get(`historicalEps_${symbol}`);
@@ -184,6 +191,40 @@ const getHistoricalEps = async (symbols: string[]) => {
 	return yahooResults;
 };
 
+const calculateHistoricalPeRatio = (price: HistoricalData, eps: HistoricalData): HistoricalData => {
+	log("Calculating historical price-earnings ratio");
+
+	return reduce(price, (acc1: any, symbolData, symbol) => {
+		const symbolEps = reduce(symbolData, (acc2: any, quarters, year) => {
+			const yearEps = reduce(quarters, (acc3: any, avgPrice, q) => {
+				const epsVal = get(eps, [symbol, year, q], null);
+
+				if (avgPrice && epsVal) {
+					acc3.push(avgPrice / epsVal);
+				}
+
+				return acc3;
+			}, []);
+
+			const avg = arrayAvg(yearEps);
+
+			if (avg) {
+				acc2.push(avg);
+			}
+
+			return acc2;
+		}, []);
+
+		const symbolPe = arrayAvg(symbolEps);
+
+		if (symbolPe) {
+			acc1[symbol] = symbolPe;
+		}
+
+		return acc1;
+	}, {});
+}
+
 const calculatePower = async (symbol: string) => {
 	// Use PE-EPS method to predict stock power
 };
@@ -196,14 +237,20 @@ const getRatings = async (symbols) => {
 	// https://site.financialmodelingprep.com/developer/docs#company-rating-company-information
 };
 
-export const runAnalysis = async () => {
-	const trending = await getTrending();
-	log("Trending:", trending);
+export const runAnalysis = async (symbol?: string) => {
+	let symbols = [];
+	if (!symbol) {
+		symbols = await getTrending();
+		log("Trending:", symbols);
+	} else {
+		symbols = [symbol];
+	}
 
-	const historicalPrice = await getHistoricalPrice(trending);
-	const historicalEps = await getHistoricalEps(trending);
+	const historicalPrice = await getHistoricalPrice(symbols);
+	const historicalEps = await getHistoricalEps(symbols);
 
-	console.log(historicalPrice, historicalEps);
+	const historicalPeRatio = await calculateHistoricalPeRatio(historicalPrice, historicalEps);
+	console.log(JSON.stringify(historicalPeRatio));
 
 	log("DONE");
 
