@@ -20,7 +20,9 @@ const cache = fileCache.create({
 
 const log = debugFunc("bot:engine:analysis");
 
-const arrayAvg = (array: number[]) => array.reduce((acc, num) => acc + num, 0) / array.length;
+const arrayAvg = (array: number[]): number => array.reduce((acc, num) => acc + num, 0) / array.length;
+
+const cagr = (oldVal: number, newVal: number, time: number): number => (Math.pow(newVal / oldVal, (1 / time)) - 1);
 
 const parseEarningsDate = (earningsDate: string): Moment => {
 	const match = earningsDate.match(
@@ -60,10 +62,6 @@ const parseEarningsDate = (earningsDate: string): Moment => {
 
 // Get popular/top stocks, maybe top 20 at least
 const getTrending = async () => {
-	if (!process.env.FINANCEAPI_KEY) {
-		throw "Please define FINANCEAPI_KEY";
-	}
-
 	log("Fetching trending");
 	const { quotes = [] } = await yahooFinance.trendingSymbols("US", {
 		count: 20,
@@ -143,7 +141,7 @@ const getHistoricalEps = async (symbols: string[]): Promise<HistoricalData> => {
 			responseHtml = await response.text();
 
 			cache.set(`historicalEps_${symbol}`, responseHtml, {
-				life: 2592000
+				life: (60 * 60 * 24 * 30)
 			});
 		}
 
@@ -225,17 +223,54 @@ const calculateHistoricalPeRatio = (price: HistoricalData, eps: HistoricalData):
 	}, {});
 }
 
-const calculatePower = async (symbol: string) => {
-	// Use PE-EPS method to predict stock power
-};
+const getHistoricalGrowth = async (symbols: string[]) => {
+	if (!process.env.FMP_KEY) {
+		throw "Please set your Financial Modeling Prep API Key (FMP_KEY)"
+	}
 
-const getRatings = async (symbols) => {
-	// const searchMultiple = await yahooFinance2.recommendationsBySymbol([
-	// 	'AAPL',
-	// 	'BMW.DE',
-	// 	]);
-	// https://site.financialmodelingprep.com/developer/docs#company-rating-company-information
-};
+	const results = await symbols.reduce(async (pr, symbol) => {
+		log(`Fetching historical EPS for ${symbol}`);
+
+		const out: { [key: string]: any } = await pr;
+
+		const queryString = new URLSearchParams({
+			period: "annual",
+			limit: "3",
+			apikey: (process.env.FMP_KEY || "")
+		}).toString();
+
+		const incomeUrl = `https://financialmodelingprep.com/api/v3/income-statement/${symbol}?${queryString}`;
+		const balanceUrl = `https://financialmodelingprep.com/api/v3/balance-sheet-statement/${symbol}?${queryString}`;
+
+		let incomeData = cache.get(`historicalIncome_${symbol}`);
+		if (!incomeData) {
+			const incomeResponse = await fetch(incomeUrl);
+
+			incomeData = await incomeResponse.json();
+
+			cache.set(`historicalIncome_${symbol}`, incomeData, {
+				life: (60 * 60 * 24)
+			});
+		}
+	
+		let balanceData = cache.get(`historicalBalance${symbol}`);
+		if (!balanceData) {
+			const balanceResponse = await fetch(balanceUrl);
+
+			incomeData = await balanceResponse.json();
+
+			cache.set(`historicalBalance${symbol}`, incomeData, {
+				life: (60 * 60 * 24)
+			});
+		}
+
+		console.log(incomeData);
+
+		return out;
+	}, Promise.resolve({}));
+
+	return results;
+}
 
 export const runAnalysis = async (symbol?: string) => {
 	let symbols = [];
@@ -246,11 +281,12 @@ export const runAnalysis = async (symbol?: string) => {
 		symbols = [symbol];
 	}
 
-	const historicalPrice = await getHistoricalPrice(symbols);
-	const historicalEps = await getHistoricalEps(symbols);
+	// const historicalPrice = await getHistoricalPrice(symbols);
+	// const historicalEps = await getHistoricalEps(symbols);
 
-	const historicalPeRatio = await calculateHistoricalPeRatio(historicalPrice, historicalEps);
-	console.log(JSON.stringify(historicalPeRatio));
+	// const historicalPeRatio = await calculateHistoricalPeRatio(historicalPrice, historicalEps);
+	
+	const historicalGrowth = await getHistoricalGrowth(symbols);
 
 	log("DONE");
 
