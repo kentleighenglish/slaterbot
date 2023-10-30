@@ -252,7 +252,7 @@ const getHistoricalGrowth = async (symbols: string[]) => {
 				life: (60 * 60 * 24)
 			});
 		}
-	
+
 		let balanceData = cache.get(`historicalBalance${symbol}`);
 		if (!balanceData) {
 			const balanceResponse = await fetch(balanceUrl);
@@ -281,12 +281,15 @@ export const runAnalysis = async (symbol?: string) => {
 		symbols = [symbol];
 	}
 
+	const result = await yahooFinance.quoteSummary("AAPL", { modules: ["incomeStatementHistory", "balanceSheetHistory", "earningsHistory"] });
+	console.log(JSON.stringify(result));
+
 	// const historicalPrice = await getHistoricalPrice(symbols);
 	// const historicalEps = await getHistoricalEps(symbols);
 
 	// const historicalPeRatio = await calculateHistoricalPeRatio(historicalPrice, historicalEps);
-	
-	const historicalGrowth = await getHistoricalGrowth(symbols);
+
+	// const historicalGrowth = await getHistoricalGrowth([ symbols[0] ]);
 
 	log("DONE");
 

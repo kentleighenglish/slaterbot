@@ -1,0 +1,286 @@
+(Historical Price)
+Monthly Price for last 3 years
+
+(Quarterly EPS)
+Basic EPS per quarter
+
+
+
+(Income)
+Total Income
+Reported Net Profit
+Earnings Per Share
+
+(Balance)
+Reserves
+//Total Current Assets
+//Total Assets
+
+(Cash Flow)
+Net Cash From Operating
+
+{
+  "balanceSheetHistory": {
+    "balanceSheetStatements": [
+      {
+        "maxAge": 1,
+        "endDate": "2022-09-24T00:00:00.000Z",
+        "cash": 23646000000,
+        "shortTermInvestments": 24658000000,
+        "netReceivables": 60932000000,
+        "inventory": 4946000000,
+        "otherCurrentAssets": 21223000000,
+        "totalCurrentAssets": 135405000000,
+        "longTermInvestments": 120805000000,
+        "propertyPlantEquipment": 52534000000,
+        "otherAssets": 44011000000,
+        "totalAssets": 352755000000,
+        "accountsPayable": 64115000000,
+        "shortLongTermDebt": 11128000000,
+        "otherCurrentLiab": 67094000000,
+        "longTermDebt": 98959000000,
+        "otherLiab": 38394000000,
+        "totalCurrentLiabilities": 153982000000,
+        "totalLiab": 302083000000,
+        "commonStock": 64849000000,
+        "retainedEarnings": -3068000000,
+        "treasuryStock": -11109000000,
+        "otherStockholderEquity": -11109000000,
+        "totalStockholderEquity": 50672000000,
+        "netTangibleAssets": 50672000000
+      },
+      {
+        "maxAge": 1,
+        "endDate": "2021-09-25T00:00:00.000Z",
+        "cash": 34940000000,
+        "shortTermInvestments": 27699000000,
+        "netReceivables": 51506000000,
+        "inventory": 6580000000,
+        "otherCurrentAssets": 14111000000,
+        "totalCurrentAssets": 134836000000,
+        "longTermInvestments": 127877000000,
+        "propertyPlantEquipment": 49527000000,
+        "otherAssets": 38762000000,
+        "totalAssets": 351002000000,
+        "accountsPayable": 54763000000,
+        "shortLongTermDebt": 9613000000,
+        "otherCurrentLiab": 53577000000,
+        "longTermDebt": 109106000000,
+        "otherLiab": 43050000000,
+        "totalCurrentLiabilities": 125481000000,
+        "totalLiab": 287912000000,
+        "commonStock": 57365000000,
+        "retainedEarnings": 5562000000,
+        "treasuryStock": 163000000,
+        "otherStockholderEquity": 163000000,
+        "totalStockholderEquity": 63090000000,
+        "netTangibleAssets": 63090000000
+      },
+      {
+        "maxAge": 1,
+        "endDate": "2020-09-26T00:00:00.000Z",
+        "cash": 38016000000,
+        "shortTermInvestments": 52927000000,
+        "netReceivables": 37445000000,
+        "inventory": 4061000000,
+        "otherCurrentAssets": 11264000000,
+        "totalCurrentAssets": 143713000000,
+        "longTermInvestments": 100887000000,
+        "propertyPlantEquipment": 45336000000,
+        "otherAssets": 33952000000,
+        "totalAssets": 323888000000,
+        "accountsPayable": 42296000000,
+        "shortLongTermDebt": 8773000000,
+        "otherCurrentLiab": 47867000000,
+        "longTermDebt": 98667000000,
+        "otherLiab": 46108000000,
+        "totalCurrentLiabilities": 105392000000,
+        "totalLiab": 258549000000,
+        "commonStock": 50779000000,
+        "retainedEarnings": 14966000000,
+        "treasuryStock": -406000000,
+        "otherStockholderEquity": -406000000,
+        "totalStockholderEquity": 65339000000,
+        "netTangibleAssets": 65339000000
+      },
+      {
+        "maxAge": 1,
+        "endDate": "2019-09-28T00:00:00.000Z",
+        "cash": 48844000000,
+        "shortTermInvestments": 51713000000,
+        "netReceivables": 45804000000,
+        "inventory": 4106000000,
+        "otherCurrentAssets": 12352000000,
+        "totalCurrentAssets": 162819000000,
+        "longTermInvestments": 105341000000,
+        "propertyPlantEquipment": 37378000000,
+        "otherAssets": 32978000000,
+        "totalAssets": 338516000000,
+        "accountsPayable": 46236000000,
+        "shortLongTermDebt": 10260000000,
+        "otherCurrentLiab": 43242000000,
+        "longTermDebt": 91807000000,
+        "otherLiab": 50503000000,
+        "totalCurrentLiabilities": 105718000000,
+        "totalLiab": 248028000000,
+        "commonStock": 45174000000,
+        "retainedEarnings": 45898000000,
+        "treasuryStock": -584000000,
+        "otherStockholderEquity": -584000000,
+        "totalStockholderEquity": 90488000000,
+        "netTangibleAssets": 90488000000
+      }
+    ],
+    "maxAge": 86400
+  },
+  "incomeStatementHistory": {
+    "incomeStatementHistory": [
+      {
+        "maxAge": 1,
+        "endDate": "2022-09-24T00:00:00.000Z",
+        "totalRevenue": 394328000000,
+        "costOfRevenue": 223546000000,
+        "grossProfit": 170782000000,
+        "researchDevelopment": 26251000000,
+        "sellingGeneralAdministrative": 25094000000,
+        "nonRecurring": null,
+        "otherOperatingExpenses": null,
+        "totalOperatingExpenses": 274891000000,
+        "operatingIncome": 119437000000,
+        "totalOtherIncomeExpenseNet": -334000000,
+        "ebit": 119437000000,
+        "interestExpense": -2931000000,
+        "incomeBeforeTax": 119103000000,
+        "incomeTaxExpense": 19300000000,
+        "minorityInterest": null,
+        "netIncomeFromContinuingOps": 99803000000,
+        "discontinuedOperations": null,
+        "extraordinaryItems": null,
+        "effectOfAccountingCharges": null,
+        "otherItems": null,
+        "netIncome": 99803000000,
+        "netIncomeApplicableToCommonShares": 99803000000
+      },
+      {
+        "maxAge": 1,
+        "endDate": "2021-09-25T00:00:00.000Z",
+        "totalRevenue": 365817000000,
+        "costOfRevenue": 212981000000,
+        "grossProfit": 152836000000,
+        "researchDevelopment": 21914000000,
+        "sellingGeneralAdministrative": 21973000000,
+        "nonRecurring": null,
+        "otherOperatingExpenses": null,
+        "totalOperatingExpenses": 256868000000,
+        "operatingIncome": 108949000000,
+        "totalOtherIncomeExpenseNet": 258000000,
+        "ebit": 108949000000,
+        "interestExpense": -2645000000,
+        "incomeBeforeTax": 109207000000,
+        "incomeTaxExpense": 14527000000,
+        "minorityInterest": null,
+        "netIncomeFromContinuingOps": 94680000000,
+        "discontinuedOperations": null,
+        "extraordinaryItems": null,
+        "effectOfAccountingCharges": null,
+        "otherItems": null,
+        "netIncome": 94680000000,
+        "netIncomeApplicableToCommonShares": 94680000000
+      },
+      {
+        "maxAge": 1,
+        "endDate": "2020-09-26T00:00:00.000Z",
+        "totalRevenue": 274515000000,
+        "costOfRevenue": 169559000000,
+        "grossProfit": 104956000000,
+        "researchDevelopment": 18752000000,
+        "sellingGeneralAdministrative": 19916000000,
+        "nonRecurring": null,
+        "otherOperatingExpenses": null,
+        "totalOperatingExpenses": 208227000000,
+        "operatingIncome": 66288000000,
+        "totalOtherIncomeExpenseNet": 803000000,
+        "ebit": 66288000000,
+        "interestExpense": -2873000000,
+        "incomeBeforeTax": 67091000000,
+        "incomeTaxExpense": 9680000000,
+        "minorityInterest": null,
+        "netIncomeFromContinuingOps": 57411000000,
+        "discontinuedOperations": null,
+        "extraordinaryItems": null,
+        "effectOfAccountingCharges": null,
+        "otherItems": null,
+        "netIncome": 57411000000,
+        "netIncomeApplicableToCommonShares": 57411000000
+      },
+      {
+        "maxAge": 1,
+        "endDate": "2019-09-28T00:00:00.000Z",
+        "totalRevenue": 260174000000,
+        "costOfRevenue": 161782000000,
+        "grossProfit": 98392000000,
+        "researchDevelopment": 16217000000,
+        "sellingGeneralAdministrative": 18245000000,
+        "nonRecurring": null,
+        "otherOperatingExpenses": null,
+        "totalOperatingExpenses": 196244000000,
+        "operatingIncome": 63930000000,
+        "totalOtherIncomeExpenseNet": 1807000000,
+        "ebit": 63930000000,
+        "interestExpense": -3576000000,
+        "incomeBeforeTax": 65737000000,
+        "incomeTaxExpense": 10481000000,
+        "minorityInterest": null,
+        "netIncomeFromContinuingOps": 55256000000,
+        "discontinuedOperations": null,
+        "extraordinaryItems": null,
+        "effectOfAccountingCharges": null,
+        "otherItems": null,
+        "netIncome": 55256000000,
+        "netIncomeApplicableToCommonShares": 55256000000
+      }
+    ],
+    "maxAge": 86400
+  },
+  "earningsHistory": {
+    "history": [
+      {
+        "maxAge": 1,
+        "epsActual": 1.29,
+        "epsEstimate": 1.27,
+        "epsDifference": 0.02,
+        "surprisePercent": 0.016,
+        "quarter": "2022-09-30T00:00:00.000Z",
+        "period": "-4q"
+      },
+      {
+        "maxAge": 1,
+        "epsActual": 1.88,
+        "epsEstimate": 1.94,
+        "epsDifference": -0.06,
+        "surprisePercent": -0.031,
+        "quarter": "2022-12-31T00:00:00.000Z",
+        "period": "-3q"
+      },
+      {
+        "maxAge": 1,
+        "epsActual": 1.52,
+        "epsEstimate": 1.43,
+        "epsDifference": 0.09,
+        "surprisePercent": 0.063,
+        "quarter": "2023-03-31T00:00:00.000Z",
+        "period": "-2q"
+      },
+      {
+        "maxAge": 1,
+        "epsActual": 1.26,
+        "epsEstimate": 1.19,
+        "epsDifference": 0.07,
+        "surprisePercent": 0.059,
+        "quarter": "2023-06-30T00:00:00.000Z",
+        "period": "-1q"
+      }
+    ],
+    "maxAge": 86400
+  }
+}
