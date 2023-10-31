@@ -72,17 +72,14 @@ const getTrending = async () => {
 };
 
 type PriceRow = { [key: string]: any };
-const getHistoricalPrice = async (symbols: string[]): Promise<HistoricalData> => {
-	const period2 = moment().format("YYYY-MM-DD");
-	const period1 = moment().subtract(3, "years").format("YYYY-MM-DD");
-
+const getHistoricalPrice = async (symbols: string[], dateRange): Promise<HistoricalData> => {
 	const yahooResults = await symbols.reduce(async (pr, symbol) => {
 		log(`Fetching historical price for ${symbol}`);
 		const out: { [key: string]: any } = await pr;
 
 		const response = await yahooFinance.historical(symbol, {
-			period1,
-			period2,
+			period1: dateRange.from,
+			period2: dateRange.to,
 			interval: "1mo",
 		});
 
@@ -122,9 +119,7 @@ const getHistoricalPrice = async (symbols: string[]): Promise<HistoricalData> =>
 type EpsRow = { [key: string]: any };
 type EpsQuarter = { 1?: number, 2?: number, 3?: number, 4?: number };
 type SymbolData = { [key: string]: EpsQuarter };
-const getHistoricalEps = async (symbols: string[]): Promise<HistoricalData> => {
-	const to = moment().format("YYYY-MM-DD");
-	const from = moment().subtract(3, "years").format("YYYY-MM-DD");
+const getHistoricalEps = async (symbols: string[], dateRange): Promise<HistoricalData> => {
 
 	const yahooResults = await symbols.reduce(async (pr, symbol) => {
 		log(`Fetching historical EPS for ${symbol}`);
@@ -170,7 +165,7 @@ const getHistoricalEps = async (symbols: string[]): Promise<HistoricalData> => {
 
 			const earningsDate = parseEarningsDate(outputRow["Earnings Date"]);
 
-			if (earningsDate.isBetween(from, to)) {
+			if (earningsDate.isBetween(dateRange.from, dateRange.to)) {
 				const quarter = earningsDate.format("Q");
 				const year = earningsDate.format("YYYY");
 
@@ -224,47 +219,55 @@ const calculateHistoricalPeRatio = (price: HistoricalData, eps: HistoricalData):
 }
 
 const getHistoricalGrowth = async (symbols: string[]) => {
-	if (!process.env.FMP_KEY) {
-		throw "Please set your Financial Modeling Prep API Key (FMP_KEY)"
-	}
-
 	const results = await symbols.reduce(async (pr, symbol) => {
-		log(`Fetching historical EPS for ${symbol}`);
+		log(`Fetching historical growth data for ${symbol}`);
 
 		const out: { [key: string]: any } = await pr;
 
-		const queryString = new URLSearchParams({
-			period: "annual",
-			limit: "3",
-			apikey: (process.env.FMP_KEY || "")
-		}).toString();
+		const result = await yahooFinance.quoteSummary(symbol, {
+			modules: ["incomeStatementHistory", "balanceSheetHistory", "cashflowStatementHistory"]
+		});
 
-		const incomeUrl = `https://financialmodelingprep.com/api/v3/income-statement/${symbol}?${queryString}`;
-		const balanceUrl = `https://financialmodelingprep.com/api/v3/balance-sheet-statement/${symbol}?${queryString}`;
+		const symbolData: any = {};
 
-		let incomeData = cache.get(`historicalIncome_${symbol}`);
-		if (!incomeData) {
-			const incomeResponse = await fetch(incomeUrl);
+		const {
+			balanceSheetHistory,
+			incomeStatementHistory,
+			cashflowStatementHistory,
+		} = result;
 
-			incomeData = await incomeResponse.json();
+		balanceSheetHistory?.balanceSheetStatements.forEach((balance: any) => {
+			const { endDate, totalCurrentAssets, totalAssets, totalLiab } = balance;
+			const year = moment(endDate).format("YYYY");
 
-			cache.set(`historicalIncome_${symbol}`, incomeData, {
-				life: (60 * 60 * 24)
+			set(symbolData, year, {
+				...(symbolData[year] || {}),
+				totalCurrentAssets,
+				totalAssets,
+				reserves: totalLiab
 			});
-		}
+		});
+		incomeStatementHistory?.incomeStatementHistory.forEach((income: any) => {
+			const { endDate, operatingIncome, netIncome } = income;
+			const year = moment(endDate).format("YYYY");
 
-		let balanceData = cache.get(`historicalBalance${symbol}`);
-		if (!balanceData) {
-			const balanceResponse = await fetch(balanceUrl);
-
-			incomeData = await balanceResponse.json();
-
-			cache.set(`historicalBalance${symbol}`, incomeData, {
-				life: (60 * 60 * 24)
+			set(symbolData, year, {
+				...(symbolData[year] || {}),
+				totalIncome: operatingIncome,
+				netProfit: netIncome
 			});
-		}
+		});
+		cashflowStatementHistory?.cashflowStatements.forEach((cashFlow: any) => {
+			const { endDate, totalCashFromOperatingActivities } = cashFlow;
+			const year = moment(endDate).format("YYYY");
 
-		console.log(incomeData);
+			set(symbolData, year, {
+				...(symbolData[year] || {}),
+				netCashFromOperating: totalCashFromOperatingActivities
+			});
+		});
+
+		out[symbol] = symbolData;
 
 		return out;
 	}, Promise.resolve({}));
@@ -281,15 +284,18 @@ export const runAnalysis = async (symbol?: string) => {
 		symbols = [symbol];
 	}
 
-	const result = await yahooFinance.quoteSummary("AAPL", { modules: ["incomeStatementHistory", "balanceSheetHistory", "earningsHistory"] });
-	console.log(JSON.stringify(result));
+	const to = moment().month(0).date(0).format("YYYY-MM-DD");
+	const from = moment().subtract(3, "years").month(0).date(0).format("YYYY-MM-DD");
+	log(`Getting data for date range: ${from} - ${to}`);
 
-	// const historicalPrice = await getHistoricalPrice(symbols);
-	// const historicalEps = await getHistoricalEps(symbols);
 
-	// const historicalPeRatio = await calculateHistoricalPeRatio(historicalPrice, historicalEps);
+	const historicalPrice = await getHistoricalPrice(["AAPL"], { to, from });
+	const historicalEps = await getHistoricalEps(["AAPL"], { to, from });
+	console.log(historicalPrice, historicalEps);
 
-	// const historicalGrowth = await getHistoricalGrowth([ symbols[0] ]);
+	const historicalPeRatio = await calculateHistoricalPeRatio(historicalPrice, historicalEps);
+
+	// const historicalGrowth = await getHistoricalGrowth(["AAPL"], { to, from });
 
 	log("DONE");
 
