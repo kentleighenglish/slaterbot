@@ -375,8 +375,6 @@ export const runAnalysis = async (symbols: string | string[] = []) => {
 		}), {})
 	}), {});
 	const futureEps = await calculateFutureEps(growthRate, growthData);
-	console.log(JSON.stringify(pastEps));
-	console.log(JSON.stringify(futureEps));
 
 	log("DONE");
 
