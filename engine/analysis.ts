@@ -14,11 +14,26 @@ type HistoricalData = {
 	[key: string]: HistoricalYear
 }
 
+interface DateRange {
+	to: string;
+	from: string;
+}
+
 const cache = fileCache.create({
 	file: resolve("./.cache")
 });
 
 const log = debugFunc("bot:engine:analysis");
+
+const growthWeights: any = {
+	totalIncome: .2,
+	totalCurrentAssets: .05,
+	totalAssets: .1,
+	reserves: .05,
+	netProfit: .2,
+	netCashFromOperating: .15,
+	eps: .25
+}
 
 const arrayAvg = (array: number[]): number => array.reduce((acc, num) => acc + num, 0) / array.length;
 
@@ -72,7 +87,7 @@ const getTrending = async () => {
 };
 
 type PriceRow = { [key: string]: any };
-const getHistoricalPrice = async (symbols: string[], dateRange): Promise<HistoricalData> => {
+const getHistoricalPrice = async (symbols: string[], dateRange: DateRange): Promise<HistoricalData> => {
 	const yahooResults = await symbols.reduce(async (pr, symbol) => {
 		log(`Fetching historical price for ${symbol}`);
 		const out: { [key: string]: any } = await pr;
@@ -119,7 +134,7 @@ const getHistoricalPrice = async (symbols: string[], dateRange): Promise<Histori
 type EpsRow = { [key: string]: any };
 type EpsQuarter = { 1?: number, 2?: number, 3?: number, 4?: number };
 type SymbolData = { [key: string]: EpsQuarter };
-const getHistoricalEps = async (symbols: string[], dateRange): Promise<HistoricalData> => {
+const getHistoricalEps = async (symbols: string[], dateRange: DateRange): Promise<HistoricalData> => {
 
 	const yahooResults = await symbols.reduce(async (pr, symbol) => {
 		log(`Fetching historical EPS for ${symbol}`);
@@ -188,44 +203,46 @@ const calculateHistoricalPeRatio = (price: HistoricalData, eps: HistoricalData):
 	log("Calculating historical price-earnings ratio");
 
 	return reduce(price, (acc1: any, symbolData, symbol) => {
-		const symbolEps = reduce(symbolData, (acc2: any, quarters, year) => {
-			const yearEps = reduce(quarters, (acc3: any, avgPrice, q) => {
-				const epsVal = get(eps, [symbol, year, q], null);
+		const yearEps = reduce(symbolData, (acc2: any, quarters, year) => {
+			const yearVals = Object.values(quarters);
+			const epsVals = Object.values(get(eps, [symbol, year], {}));
+			
+			const yearVal = arrayAvg(yearVals);
+			const epsVal = arrayAvg(epsVals);
 
-				if (avgPrice && epsVal) {
-					acc3.push(avgPrice / epsVal);
-				}
+			// const avg = arrayAvg(yearEps);
 
-				return acc3;
-			}, []);
-
-			const avg = arrayAvg(yearEps);
-
-			if (avg) {
-				acc2.push(avg);
+			acc2[year] = {
+				priceAvg: yearVal,
+				epsAvg: epsVal,
+				pe: yearVal / epsVal
 			}
 
 			return acc2;
-		}, []);
+		}, {});
+		
+		const epsTotals = Object.values(yearEps).map((year: any) => year.pe);
 
-		const symbolPe = arrayAvg(symbolEps);
+		const pe = arrayAvg(epsTotals);
 
-		if (symbolPe) {
-			acc1[symbol] = symbolPe;
-		}
+		acc1[symbol] = {
+			yearData: yearEps,
+			pe
+		};
 
 		return acc1;
 	}, {});
 }
 
-const getHistoricalGrowth = async (symbols: string[]) => {
+const getHistoricalGrowth = async (symbols: string[], eps: any, dateRange: DateRange) => {
 	const results = await symbols.reduce(async (pr, symbol) => {
 		log(`Fetching historical growth data for ${symbol}`);
+		const symbolEps = eps[symbol];
 
 		const out: { [key: string]: any } = await pr;
 
 		const result = await yahooFinance.quoteSummary(symbol, {
-			modules: ["incomeStatementHistory", "balanceSheetHistory", "cashflowStatementHistory"]
+			modules: ["incomeStatementHistory", "balanceSheetHistory", "cashflowStatementHistory", "earningsHistory"]
 		});
 
 		const symbolData: any = {};
@@ -240,32 +257,45 @@ const getHistoricalGrowth = async (symbols: string[]) => {
 			const { endDate, totalCurrentAssets, totalAssets, totalLiab } = balance;
 			const year = moment(endDate).format("YYYY");
 
-			set(symbolData, year, {
-				...(symbolData[year] || {}),
-				totalCurrentAssets,
-				totalAssets,
-				reserves: totalLiab
-			});
+			if(moment(endDate).isBetween(dateRange.from, dateRange.to)) {
+				set(symbolData, year, {
+					...(symbolData[year] || {}),
+					totalCurrentAssets,
+					totalAssets,
+					reserves: totalLiab
+				});
+			}
 		});
 		incomeStatementHistory?.incomeStatementHistory.forEach((income: any) => {
 			const { endDate, operatingIncome, netIncome } = income;
 			const year = moment(endDate).format("YYYY");
 
-			set(symbolData, year, {
-				...(symbolData[year] || {}),
-				totalIncome: operatingIncome,
-				netProfit: netIncome
-			});
+			if(moment(endDate).isBetween(dateRange.from, dateRange.to)) {
+				set(symbolData, year, {
+					...(symbolData[year] || {}),
+					totalIncome: operatingIncome,
+					netProfit: netIncome
+				});
+			}
 		});
 		cashflowStatementHistory?.cashflowStatements.forEach((cashFlow: any) => {
 			const { endDate, totalCashFromOperatingActivities } = cashFlow;
 			const year = moment(endDate).format("YYYY");
 
-			set(symbolData, year, {
-				...(symbolData[year] || {}),
-				netCashFromOperating: totalCashFromOperatingActivities
-			});
+			if(moment(endDate).isBetween(dateRange.from, dateRange.to)) {
+				set(symbolData, year, {
+					...(symbolData[year] || {}),
+					netCashFromOperating: totalCashFromOperatingActivities
+				});
+			}
 		});
+
+		Object.keys(symbolData).forEach((year) => {
+			const epsYear: { [key: string]: number } = symbolEps[year] || {};
+			const epsTotal = Object.values(epsYear).reduce((acc: number, eps: number) => acc + eps, 0);
+
+			symbolData[year].eps = epsTotal;
+		})
 
 		out[symbol] = symbolData;
 
@@ -275,27 +305,78 @@ const getHistoricalGrowth = async (symbols: string[]) => {
 	return results;
 }
 
-export const runAnalysis = async (symbol?: string) => {
-	let symbols = [];
-	if (!symbol) {
+const calculateGrowthRate = (growthData: any) => {
+	return reduce(growthData, (acc: any, data, symbol) => {
+		const coll = Object.values(data);
+		const collKeys: number[] = Object.keys(data).map(year => Number(year));
+
+		const oldest: any = coll[0];
+		const newest: any = coll[coll.length - 1];
+
+		const diff = (collKeys[collKeys.length -1] - collKeys[0]) + 1;
+
+		const weightedCagr = reduce(oldest, (acc2: any, val, key) => ({
+			...acc2,
+			[key]: cagr(oldest[key], newest[key], diff) * growthWeights[key],
+		}), {});
+
+		acc[symbol] = reduce(weightedCagr, (acc, val) => acc + val, 0);
+
+		return acc;
+	}, {});
+}
+
+const calculateFutureEps = (rateSymbols: { [key: string]: number }, data: { [key: string]: any }, years: number = 3) => {
+	return reduce(rateSymbols, (acc: any, rate, symbol) => {
+		const futureEps: any = {};
+		for(let i = 1; i <= years; i++) {
+			const newDate = moment().add(i, "years").format("YYYY");
+			const dataArr = Object.values(data[symbol]);
+			const recentData: any = dataArr[dataArr.length - 1];
+	
+			const eps = recentData?.eps;
+
+			futureEps[newDate] = eps * Math.pow(1 + (rate / 100), i)
+		}
+		acc[symbol] = futureEps;
+		
+		return acc;
+	}, {});
+}
+
+export const runAnalysis = async (symbols: string | string[] = []) => {
+	if (!symbols.length) {
 		symbols = await getTrending();
 		log("Trending:", symbols);
-	} else {
-		symbols = [symbol];
+	} else if (!Array.isArray(symbols)) {
+		symbols = [symbols];
 	}
+
+	symbols = ["AAPL"];
 
 	const to = moment().month(0).date(0).format("YYYY-MM-DD");
 	const from = moment().subtract(3, "years").month(0).date(0).format("YYYY-MM-DD");
 	log(`Getting data for date range: ${from} - ${to}`);
 
 
-	const historicalPrice = await getHistoricalPrice(["AAPL"], { to, from });
-	const historicalEps = await getHistoricalEps(["AAPL"], { to, from });
-	console.log(historicalPrice, historicalEps);
+	const price = await getHistoricalPrice(symbols, { to, from });
+	const eps = await getHistoricalEps(symbols, { to, from });
+	
+	const pe = calculateHistoricalPeRatio(price, eps);
 
-	const historicalPeRatio = await calculateHistoricalPeRatio(historicalPrice, historicalEps);
+	const growthData = await getHistoricalGrowth(symbols, eps, { to, from });
+	const growthRate = await calculateGrowthRate(growthData);
 
-	// const historicalGrowth = await getHistoricalGrowth(["AAPL"], { to, from });
+	const pastEps = reduce(eps, (acc, years, symbol) => ({
+		...acc,
+		[symbol]: reduce(years, (acc2, epsQ, year) => ({
+			...acc2,
+			[year]: Object.values(epsQ).reduce((acc3, eps) => acc3 + eps, 0)
+		}), {})
+	}), {});
+	const futureEps = await calculateFutureEps(growthRate, growthData);
+	console.log(JSON.stringify(pastEps));
+	console.log(JSON.stringify(futureEps));
 
 	log("DONE");
 
