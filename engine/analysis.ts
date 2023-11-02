@@ -207,15 +207,16 @@ const calculateHistoricalPeRatio = (price: HistoricalData, eps: HistoricalData):
 			const yearVals = Object.values(quarters);
 			const epsVals = Object.values(get(eps, [symbol, year], {}));
 			
-			const yearVal = arrayAvg(yearVals);
-			const epsVal = arrayAvg(epsVals);
+			// const yearVal = arrayAvg(yearVals);
+			const priceVal = yearVals[yearVals.length - 1];
+			const epsVal = epsVals.reduce((acc3, epsVal) => acc3 + epsVal, 0);
 
 			// const avg = arrayAvg(yearEps);
 
 			acc2[year] = {
-				priceAvg: yearVal,
-				epsAvg: epsVal,
-				pe: yearVal / epsVal
+				price: priceVal,
+				eps: epsVal,
+				pe: priceVal / epsVal
 			}
 
 			return acc2;
@@ -392,8 +393,8 @@ export const runAnalysis = async (symbols: string | string[] = []) => {
 
 	log("DONE");
 	const futurePrice = calculateFuturePrice(futureEps, profitEarningRatio);
-	console.log(price);
-	console.log(futurePrice);
+
+	
 
 	// Return list of stocks with ratings
 };
