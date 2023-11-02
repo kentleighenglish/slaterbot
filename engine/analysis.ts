@@ -344,6 +344,20 @@ const calculateFutureEps = (rateSymbols: { [key: string]: number }, data: { [key
 	}, {});
 }
 
+const calculateFuturePrice = (futureEps: any, profitEarningRatio: any) => {
+	return reduce(futureEps, (acc: any, eps, symbol) => {	
+		const { pe } = profitEarningRatio[symbol];
+
+		acc[symbol] = reduce(eps, (acc2: any, epsVal, year) => {
+			acc2[year] = pe * epsVal;
+
+			return acc2;
+		}, {});
+
+		return acc;
+	}, {});
+}
+
 export const runAnalysis = async (symbols: string | string[] = []) => {
 	if (!symbols.length) {
 		symbols = await getTrending();
@@ -362,7 +376,7 @@ export const runAnalysis = async (symbols: string | string[] = []) => {
 	const price = await getHistoricalPrice(symbols, { to, from });
 	const eps = await getHistoricalEps(symbols, { to, from });
 	
-	const pe = calculateHistoricalPeRatio(price, eps);
+	const profitEarningRatio = calculateHistoricalPeRatio(price, eps);
 
 	const growthData = await getHistoricalGrowth(symbols, eps, { to, from });
 	const growthRate = await calculateGrowthRate(growthData);
@@ -377,6 +391,9 @@ export const runAnalysis = async (symbols: string | string[] = []) => {
 	const futureEps = await calculateFutureEps(growthRate, growthData);
 
 	log("DONE");
+	const futurePrice = calculateFuturePrice(futureEps, profitEarningRatio);
+	console.log(price);
+	console.log(futurePrice);
 
 	// Return list of stocks with ratings
 };
