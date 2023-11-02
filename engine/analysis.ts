@@ -308,6 +308,8 @@ const getHistoricalGrowth = async (symbols: string[], eps: any, dateRange: DateR
 
 const calculateGrowthRate = (growthData: any) => {
 	return reduce(growthData, (acc: any, data, symbol) => {
+		log(`Calculating growth rate for ${symbol}`);
+
 		const coll = Object.values(data);
 		const collKeys: number[] = Object.keys(data).map(year => Number(year));
 
@@ -329,6 +331,7 @@ const calculateGrowthRate = (growthData: any) => {
 
 const calculateFutureEps = (rateSymbols: { [key: string]: number }, data: { [key: string]: any }, years: number = 3) => {
 	return reduce(rateSymbols, (acc: any, rate, symbol) => {
+		log(`Calculating future EPS for ${symbol}`);
 		const futureEps: any = {};
 		for(let i = 1; i <= years; i++) {
 			const newDate = moment().add(i, "years").format("YYYY");
@@ -347,6 +350,7 @@ const calculateFutureEps = (rateSymbols: { [key: string]: number }, data: { [key
 
 const calculateFuturePrice = (futureEps: any, profitEarningRatio: any) => {
 	return reduce(futureEps, (acc: any, eps, symbol) => {	
+		log(`Calculating future price for ${symbol}`);
 		const { pe } = profitEarningRatio[symbol];
 
 		acc[symbol] = reduce(eps, (acc2: any, epsVal, year) => {
@@ -357,6 +361,31 @@ const calculateFuturePrice = (futureEps: any, profitEarningRatio: any) => {
 
 		return acc;
 	}, {});
+}
+
+const getRatings = async (symbols: string[]) => {
+	const results = await symbols.reduce(async (pr, symbol) => {
+		log(`Fetching ratings for ${symbol}`);
+		const out: { [key: string]: any } = await pr;
+		
+		const result = await yahooFinance.insights(symbol, { reportsCount: 1 });
+
+		const { shortTermOutlook, intermediateTermOutlook, longTermOutlook } = result?.instrumentInfo?.technicalEvents || {};
+		const shortTerm = shortTermOutlook?.score || 0;
+		const medTerm = intermediateTermOutlook?.score || 0;
+		const longTerm = longTermOutlook?.score || 0;
+
+		out[symbol] = {
+			avg: arrayAvg([shortTerm, medTerm, longTerm]),
+			shortTerm,
+			medTerm,
+			longTerm,
+		};
+
+		return out;
+	}, Promise.resolve({}));
+
+	return results;
 }
 
 export const runAnalysis = async (symbols: string | string[] = []) => {
@@ -394,7 +423,21 @@ export const runAnalysis = async (symbols: string | string[] = []) => {
 	log("DONE");
 	const futurePrice = calculateFuturePrice(futureEps, profitEarningRatio);
 
-	
+	const ratings = await getRatings(symbols);
 
 	// Return list of stocks with ratings
+
+	return symbols.reduce((acc: any, symbol: string) => {
+		const rating = get(ratings, symbol, {});
+		const historicalPrice = get(price, symbol, {});
+		const futureSymbolPrice = get(futurePrice, symbol, {});
+
+		acc[symbol] = {
+			rating,
+			historicalPrice,
+			futurePrice: futureSymbolPrice,
+		}
+
+		return acc;
+	}, {});
 };
