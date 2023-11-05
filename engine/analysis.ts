@@ -23,6 +23,20 @@ const cache = fileCache.create({
 	file: resolve("./.cache")
 });
 
+const cacheFetch = async (key: string, fetchFunc: () => any) => {
+	let response = null;
+	if (process.env.FORCE_CACHE) {
+		log(`Cache active, getting: ${key}`);
+		response = cache.get(key);
+	}
+
+	if (!response) {
+		response = await fetchFunc();
+	}
+
+	return response;
+}
+
 const log = debugFunc("bot:engine:analysis");
 
 const growthWeights: any = {
@@ -92,13 +106,13 @@ const getHistoricalPrice = async (symbols: string[], dateRange: DateRange): Prom
 		log(`Fetching historical price for ${symbol}`);
 		const out: { [key: string]: any } = await pr;
 
-		const response = await yahooFinance.historical(symbol, {
+		const response = await cacheFetch(`historicalPrice_${symbol}`, () => yahooFinance.historical(symbol, {
 			period1: dateRange.from,
 			period2: dateRange.to,
 			interval: "1mo",
-		});
+		}));
 
-		const symbolData = response.reduce((acc: PriceRow, point) => {
+		const symbolData = response.reduce((acc: PriceRow, point: any) => {
 			const date = moment(point.date);
 
 			const q = date.quarter();
@@ -116,7 +130,7 @@ const getHistoricalPrice = async (symbols: string[], dateRange: DateRange): Prom
 			return acc;
 		}, {});
 
-		out[symbol] = reduce(symbolData,(acc: PriceRow, quarters, year) => {
+		out[symbol] = reduce(symbolData, (acc: PriceRow, quarters, year) => {
 			acc[year] = reduce(quarters, (acc2, q, key) => ({
 				...acc2,
 				[key]: arrayAvg(q)
@@ -206,7 +220,7 @@ const calculateHistoricalPeRatio = (price: HistoricalData, eps: HistoricalData):
 		const yearEps = reduce(symbolData, (acc2: any, quarters, year) => {
 			const yearVals = Object.values(quarters);
 			const epsVals = Object.values(get(eps, [symbol, year], {}));
-			
+
 			// const yearVal = arrayAvg(yearVals);
 			const priceVal = yearVals[yearVals.length - 1];
 			const epsVal = epsVals.reduce((acc3, epsVal) => acc3 + epsVal, 0);
@@ -221,7 +235,7 @@ const calculateHistoricalPeRatio = (price: HistoricalData, eps: HistoricalData):
 
 			return acc2;
 		}, {});
-		
+
 		const epsTotals = Object.values(yearEps).map((year: any) => year.pe);
 
 		const pe = arrayAvg(epsTotals);
@@ -242,9 +256,9 @@ const getHistoricalGrowth = async (symbols: string[], eps: any, dateRange: DateR
 
 		const out: { [key: string]: any } = await pr;
 
-		const result = await yahooFinance.quoteSummary(symbol, {
+		const result = await cacheFetch(`historicalGrowth_${symbol}`, () => yahooFinance.quoteSummary(symbol, {
 			modules: ["incomeStatementHistory", "balanceSheetHistory", "cashflowStatementHistory", "earningsHistory"]
-		});
+		}));
 
 		const symbolData: any = {};
 
@@ -258,7 +272,7 @@ const getHistoricalGrowth = async (symbols: string[], eps: any, dateRange: DateR
 			const { endDate, totalCurrentAssets, totalAssets, totalLiab } = balance;
 			const year = moment(endDate).format("YYYY");
 
-			if(moment(endDate).isBetween(dateRange.from, dateRange.to)) {
+			if (moment(endDate).isBetween(dateRange.from, dateRange.to)) {
 				set(symbolData, year, {
 					...(symbolData[year] || {}),
 					totalCurrentAssets,
@@ -271,7 +285,7 @@ const getHistoricalGrowth = async (symbols: string[], eps: any, dateRange: DateR
 			const { endDate, operatingIncome, netIncome } = income;
 			const year = moment(endDate).format("YYYY");
 
-			if(moment(endDate).isBetween(dateRange.from, dateRange.to)) {
+			if (moment(endDate).isBetween(dateRange.from, dateRange.to)) {
 				set(symbolData, year, {
 					...(symbolData[year] || {}),
 					totalIncome: operatingIncome,
@@ -283,7 +297,7 @@ const getHistoricalGrowth = async (symbols: string[], eps: any, dateRange: DateR
 			const { endDate, totalCashFromOperatingActivities } = cashFlow;
 			const year = moment(endDate).format("YYYY");
 
-			if(moment(endDate).isBetween(dateRange.from, dateRange.to)) {
+			if (moment(endDate).isBetween(dateRange.from, dateRange.to)) {
 				set(symbolData, year, {
 					...(symbolData[year] || {}),
 					netCashFromOperating: totalCashFromOperatingActivities
@@ -316,7 +330,7 @@ const calculateGrowthRate = (growthData: any) => {
 		const oldest: any = coll[0];
 		const newest: any = coll[coll.length - 1];
 
-		const diff = (collKeys[collKeys.length -1] - collKeys[0]) + 1;
+		const diff = (collKeys[collKeys.length - 1] - collKeys[0]) + 1;
 
 		const weightedCagr = reduce(oldest, (acc2: any, val, key) => ({
 			...acc2,
@@ -333,23 +347,23 @@ const calculateFutureEps = (rateSymbols: { [key: string]: number }, data: { [key
 	return reduce(rateSymbols, (acc: any, rate, symbol) => {
 		log(`Calculating future EPS for ${symbol}`);
 		const futureEps: any = {};
-		for(let i = 1; i <= years; i++) {
+		for (let i = 1; i <= years; i++) {
 			const newDate = moment().add(i, "years").format("YYYY");
 			const dataArr = Object.values(data[symbol]);
 			const recentData: any = dataArr[dataArr.length - 1];
-	
+
 			const eps = recentData?.eps;
 
 			futureEps[newDate] = eps * Math.pow(1 + (rate / 100), i)
 		}
 		acc[symbol] = futureEps;
-		
+
 		return acc;
 	}, {});
 }
 
 const calculateFuturePrice = (futureEps: any, profitEarningRatio: any) => {
-	return reduce(futureEps, (acc: any, eps, symbol) => {	
+	return reduce(futureEps, (acc: any, eps, symbol) => {
 		log(`Calculating future price for ${symbol}`);
 		const { pe } = profitEarningRatio[symbol];
 
@@ -367,8 +381,8 @@ const getRatings = async (symbols: string[]) => {
 	const results = await symbols.reduce(async (pr, symbol) => {
 		log(`Fetching ratings for ${symbol}`);
 		const out: { [key: string]: any } = await pr;
-		
-		const result = await yahooFinance.insights(symbol, { reportsCount: 1 });
+
+		const result = await cacheFetch(`ratings_${symbol}`, () => yahooFinance.insights(symbol, { reportsCount: 1 }));
 
 		const { shortTermOutlook, intermediateTermOutlook, longTermOutlook } = result?.instrumentInfo?.technicalEvents || {};
 		const shortTerm = shortTermOutlook?.score || 0;
@@ -405,7 +419,7 @@ export const runAnalysis = async (symbols: string | string[] = []) => {
 
 	const price = await getHistoricalPrice(symbols, { to, from });
 	const eps = await getHistoricalEps(symbols, { to, from });
-	
+
 	const profitEarningRatio = calculateHistoricalPeRatio(price, eps);
 
 	const growthData = await getHistoricalGrowth(symbols, eps, { to, from });
@@ -420,13 +434,13 @@ export const runAnalysis = async (symbols: string | string[] = []) => {
 	}), {});
 	const futureEps = await calculateFutureEps(growthRate, growthData);
 
-	log("DONE");
 	const futurePrice = calculateFuturePrice(futureEps, profitEarningRatio);
-
+	
 	const ratings = await getRatings(symbols);
-
+	
 	// Return list of stocks with ratings
-
+	
+	log("DONE");
 	return symbols.reduce((acc: any, symbol: string) => {
 		const rating = get(ratings, symbol, {});
 		const historicalPrice = get(price, symbol, {});
