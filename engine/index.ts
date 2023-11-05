@@ -55,7 +55,8 @@ export default class Engine {
 
 		await this.watchlist.assertWatchlist();
 
-		runAnalysis();
+		const analysis = await runAnalysis();
+		log(analysis);
 		// this.runCheck();
 		log("Engine started");
 	}

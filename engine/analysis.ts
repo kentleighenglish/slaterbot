@@ -347,7 +347,7 @@ const calculateFutureEps = (rateSymbols: { [key: string]: number }, data: { [key
 	return reduce(rateSymbols, (acc: any, rate, symbol) => {
 		log(`Calculating future EPS for ${symbol}`);
 		const futureEps: any = {};
-		for (let i = 1; i <= years; i++) {
+		for (let i = 0; i < years; i++) {
 			const newDate = moment().add(i, "years").format("YYYY");
 			const dataArr = Object.values(data[symbol]);
 			const recentData: any = dataArr[dataArr.length - 1];
@@ -416,7 +416,6 @@ export const runAnalysis = async (symbols: string | string[] = []) => {
 	const from = moment().subtract(3, "years").month(0).date(0).format("YYYY-MM-DD");
 	log(`Getting data for date range: ${from} - ${to}`);
 
-
 	const price = await getHistoricalPrice(symbols, { to, from });
 	const eps = await getHistoricalEps(symbols, { to, from });
 
@@ -437,8 +436,6 @@ export const runAnalysis = async (symbols: string | string[] = []) => {
 	const futurePrice = calculateFuturePrice(futureEps, profitEarningRatio);
 	
 	const ratings = await getRatings(symbols);
-	
-	// Return list of stocks with ratings
 	
 	log("DONE");
 	return symbols.reduce((acc: any, symbol: string) => {
