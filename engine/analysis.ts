@@ -368,7 +368,6 @@ const calculateFutureEps = (rateSymbols: { [key: string]: number }, data: { [key
 
 const calculateFuturePrice = (futureEps: any, profitEarningRatio: any) => {
 	return reduce(futureEps, (acc: any, eps, symbol) => {
-	return reduce(futureEps, (acc: any, eps, symbol) => {
 		log(`Calculating future price for ${symbol}`);
 		const { pe } = profitEarningRatio[symbol];
 
@@ -412,10 +411,9 @@ const getQuotes = async (symbols: string[]) => {
 		log(`Fetching ratings for ${symbol}`);
 		const out: { [key: string]: any } = await pr;
 
-		const result = await yahooFinance.quote(symbol);
-		console.log(result);
+		const result = await cacheFetch(`quotes_${symbol}`, () => yahooFinance.quote(symbol));
 
-		out[symbol] = {};
+		out[symbol] = result?.regularMarketPrice;
 
 		return out;
 	}, Promise.resolve({}));
@@ -465,11 +463,13 @@ export const runAnalysis = async (symbols: string | string[] = []) => {
 		const rating = get(ratings, symbol, {});
 		const historicalPrice = get(price, symbol, {});
 		const futureSymbolPrice = get(futurePrice, symbol, {});
+		const marketPrice = get(quotes, symbol, 0);
 
 		acc[symbol] = {
 			rating,
 			historicalPrice,
 			futurePrice: futureSymbolPrice,
+			marketPrice,
 		}
 
 		return acc;
