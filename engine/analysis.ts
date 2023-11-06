@@ -206,7 +206,7 @@ const calculateHistoricalPeRatio = (price: HistoricalData, eps: HistoricalData):
 		const yearEps = reduce(symbolData, (acc2: any, quarters, year) => {
 			const yearVals = Object.values(quarters);
 			const epsVals = Object.values(get(eps, [symbol, year], {}));
-			
+
 			// const yearVal = arrayAvg(yearVals);
 			const priceVal = yearVals[yearVals.length - 1];
 			const epsVal = epsVals.reduce((acc3, epsVal) => acc3 + epsVal, 0);
@@ -221,7 +221,7 @@ const calculateHistoricalPeRatio = (price: HistoricalData, eps: HistoricalData):
 
 			return acc2;
 		}, {});
-		
+
 		const epsTotals = Object.values(yearEps).map((year: any) => year.pe);
 
 		const pe = arrayAvg(epsTotals);
@@ -333,23 +333,23 @@ const calculateFutureEps = (rateSymbols: { [key: string]: number }, data: { [key
 	return reduce(rateSymbols, (acc: any, rate, symbol) => {
 		log(`Calculating future EPS for ${symbol}`);
 		const futureEps: any = {};
-		for(let i = 1; i <= years; i++) {
+		for(let i = 0; i <+ years; i++) {
 			const newDate = moment().add(i, "years").format("YYYY");
 			const dataArr = Object.values(data[symbol]);
 			const recentData: any = dataArr[dataArr.length - 1];
-	
+
 			const eps = recentData?.eps;
 
-			futureEps[newDate] = eps * Math.pow(1 + (rate / 100), i)
+			futureEps[newDate] = eps * Math.pow(1 + rate, i);
 		}
 		acc[symbol] = futureEps;
-		
+
 		return acc;
 	}, {});
 }
 
 const calculateFuturePrice = (futureEps: any, profitEarningRatio: any) => {
-	return reduce(futureEps, (acc: any, eps, symbol) => {	
+	return reduce(futureEps, (acc: any, eps, symbol) => {
 		log(`Calculating future price for ${symbol}`);
 		const { pe } = profitEarningRatio[symbol];
 
@@ -367,7 +367,7 @@ const getRatings = async (symbols: string[]) => {
 	const results = await symbols.reduce(async (pr, symbol) => {
 		log(`Fetching ratings for ${symbol}`);
 		const out: { [key: string]: any } = await pr;
-		
+
 		const result = await yahooFinance.insights(symbol, { reportsCount: 1 });
 
 		const { shortTermOutlook, intermediateTermOutlook, longTermOutlook } = result?.instrumentInfo?.technicalEvents || {};
@@ -381,6 +381,22 @@ const getRatings = async (symbols: string[]) => {
 			medTerm,
 			longTerm,
 		};
+
+		return out;
+	}, Promise.resolve({}));
+
+	return results;
+}
+
+const getQuotes = async (symbols: string[]) => {
+	const results = await symbols.reduce(async (pr, symbol) => {
+		log(`Fetching ratings for ${symbol}`);
+		const out: { [key: string]: any } = await pr;
+
+		const result = await yahooFinance.quote(symbol);
+		console.log(result);
+
+		out[symbol] = {};
 
 		return out;
 	}, Promise.resolve({}));
@@ -405,7 +421,7 @@ export const runAnalysis = async (symbols: string | string[] = []) => {
 
 	const price = await getHistoricalPrice(symbols, { to, from });
 	const eps = await getHistoricalEps(symbols, { to, from });
-	
+
 	const profitEarningRatio = calculateHistoricalPeRatio(price, eps);
 
 	const growthData = await getHistoricalGrowth(symbols, eps, { to, from });
@@ -424,6 +440,7 @@ export const runAnalysis = async (symbols: string | string[] = []) => {
 	const futurePrice = calculateFuturePrice(futureEps, profitEarningRatio);
 
 	const ratings = await getRatings(symbols);
+	const quotes = await getQuotes(symbols);
 
 	// Return list of stocks with ratings
 
