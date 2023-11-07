@@ -90,14 +90,18 @@ const parseEarningsDate = (earningsDate: string): Moment => {
 };
 
 // Get popular/top stocks, maybe top 20 at least
-const getTrending = async () => {
+const getTrending = async (excludeSymbols: string[] = []) => {
+	const minCount = 10;
+	excludeSymbols.push(":entitySlug");
+	excludeSymbols.push("CL=F");
+
 	log("Fetching trending");
 	const { quotes = [] } = await yahooFinance.trendingSymbols("US", {
 		count: 20,
 		lang: "en-US",
 	});
 
-	return quotes.map((quote) => quote?.symbol);
+	return quotes.map((quote) => quote?.symbol).filter(s => !excludeSymbols.includes(s));
 };
 
 type PriceRow = { [key: string]: any };
@@ -421,15 +425,13 @@ const getQuotes = async (symbols: string[]) => {
 	return results;
 }
 
-export const runAnalysis = async (symbols: string | string[] = []) => {
+export const runAnalysis = async (symbols: string | string[] = [], excludeSymbols: string[] = []) => {
 	if (!symbols.length) {
-		symbols = await getTrending();
+		symbols = await getTrending(excludeSymbols);
 		log("Trending:", symbols);
 	} else if (!Array.isArray(symbols)) {
 		symbols = [symbols];
 	}
-
-	symbols = ["AAPL"];
 
 	const to = moment().month(0).date(0).format("YYYY-MM-DD");
 	const from = moment().subtract(3, "years").month(0).date(0).format("YYYY-MM-DD");
@@ -465,13 +467,14 @@ export const runAnalysis = async (symbols: string | string[] = []) => {
 		const futureSymbolPrice = get(futurePrice, symbol, {});
 		const marketPrice = get(quotes, symbol, 0);
 
-		acc[symbol] = {
+		acc.push({
+			symbol,
 			rating,
 			historicalPrice,
 			futurePrice: futureSymbolPrice,
 			marketPrice,
-		}
+		});
 
 		return acc;
-	}, {});
+	}, []).sort((a: any, b: any) => b.rating.avg - a.rating.avg);
 };
