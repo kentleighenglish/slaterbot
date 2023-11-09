@@ -31,7 +31,10 @@ const cacheFetch = async (key: string, fetchFunc: () => any) => {
 	}
 
 	if (!response) {
+		log(`No cached item found for ${key}`);
 		response = await fetchFunc();
+
+		cache.set(key, response);
 	}
 
 	return response;
@@ -110,38 +113,42 @@ const getHistoricalPrice = async (symbols: string[], dateRange: DateRange): Prom
 		log(`Fetching historical price for ${symbol}`);
 		const out: { [key: string]: any } = await pr;
 
-		const response = await cacheFetch(`historicalPrice_${symbol}`, () => yahooFinance.historical(symbol, {
-			period1: dateRange.from,
-			period2: dateRange.to,
-			interval: "1mo",
-		}));
+		try {
+			const response = await cacheFetch(`historicalPrice_${symbol}`, () => yahooFinance.historical(symbol, {
+				period1: dateRange.from,
+				period2: dateRange.to,
+				interval: "1mo",
+			}));
+	
+			const symbolData = response.reduce((acc: PriceRow, point: any) => {
+				const date = moment(point.date);
+	
+				const q = date.quarter();
+				const year = date.year();
+	
+				const quarter: number[] = get(acc, `${year}.${q}`, []);
+	
+				quarter.push(point.close || point.open);
+	
+				acc[year] = {
+					...(acc[year] || {}),
+					[q]: quarter
+				}
+	
+				return acc;
+			}, {});
 
-		const symbolData = response.reduce((acc: PriceRow, point: any) => {
-			const date = moment(point.date);
-
-			const q = date.quarter();
-			const year = date.year();
-
-			const quarter: number[] = get(acc, `${year}.${q}`, []);
-
-			quarter.push(point.close || point.open);
-
-			acc[year] = {
-				...(acc[year] || {}),
-				[q]: quarter
-			}
-
-			return acc;
-		}, {});
-
-		out[symbol] = reduce(symbolData, (acc: PriceRow, quarters, year) => {
-			acc[year] = reduce(quarters, (acc2, q, key) => ({
-				...acc2,
-				[key]: arrayAvg(q)
-			}), {});
-
-			return acc;
-		}, {});
+			out[symbol] = reduce(symbolData, (acc: PriceRow, quarters, year) => {
+				acc[year] = reduce(quarters, (acc2, q, key) => ({
+					...acc2,
+					[key]: arrayAvg(q)
+				}), {});
+	
+				return acc;
+			}, {});
+		} catch(e) {
+			console.error(e);
+		}
 
 		return out;
 	}, Promise.resolve({}));
@@ -156,60 +163,63 @@ const getHistoricalEps = async (symbols: string[], dateRange: DateRange): Promis
 
 	const yahooResults = await symbols.reduce(async (pr, symbol) => {
 		log(`Fetching historical EPS for ${symbol}`);
-
 		const out: { [key: string]: any } = await pr;
 
-		let responseHtml = cache.get(`historicalEps_${symbol}`);
-
-		if (!responseHtml) {
-			const response = await fetch(
-				`https://finance.yahoo.com/calendar/earnings?symbol=${symbol}`
-			);
-
-			responseHtml = await response.text();
-
-			cache.set(`historicalEps_${symbol}`, responseHtml, {
-				life: (60 * 60 * 24 * 30)
-			});
-		}
-
-		const doc = cheerio.load(responseHtml);
-
-		const body = doc("table tbody tr").toArray();
-
-		const symbolData: SymbolData = {};
-
-		body.forEach((row) => {
-			const tr = cheerio.load(row);
-			const cols = tr("td").toArray();
-
-			const outputRow: EpsRow = cols.reduce((acc2, col) => {
-				const td = cheerio.load(col);
-				const children = td("*").children().toArray();
-
-				const content = td.text();
-				const colHead: string = td("*").attr("aria-label") as string;
-
-				return {
-					...acc2,
-					[colHead]: content,
-				};
-			}, {});
-
-			const earningsDate = parseEarningsDate(outputRow["Earnings Date"]);
-
-			if (earningsDate.isBetween(dateRange.from, dateRange.to)) {
-				const quarter = earningsDate.format("Q");
-				const year = earningsDate.format("YYYY");
-
-				symbolData[year] = {
-					...(symbolData[year] || {}),
-					[quarter]: outputRow["EPS Estimate"] === "-" ? null : Number(outputRow["EPS Estimate"])
-				}
+		try {
+			let responseHtml = cache.get(`historicalEps_${symbol}`);
+	
+			if (!responseHtml) {
+				const response = await fetch(
+					`https://finance.yahoo.com/calendar/earnings?symbol=${symbol}`
+				);
+	
+				responseHtml = await response.text();
+	
+				cache.set(`historicalEps_${symbol}`, responseHtml, {
+					life: (60 * 60 * 24 * 30)
+				});
 			}
-		});
-
-		out[symbol] = symbolData;
+	
+			const doc = cheerio.load(responseHtml);
+	
+			const body = doc("table tbody tr").toArray();
+	
+			const symbolData: SymbolData = {};
+	
+			body.forEach((row) => {
+				const tr = cheerio.load(row);
+				const cols = tr("td").toArray();
+	
+				const outputRow: EpsRow = cols.reduce((acc2, col) => {
+					const td = cheerio.load(col);
+					const children = td("*").children().toArray();
+	
+					const content = td.text();
+					const colHead: string = td("*").attr("aria-label") as string;
+	
+					return {
+						...acc2,
+						[colHead]: content,
+					};
+				}, {});
+	
+				const earningsDate = parseEarningsDate(outputRow["Earnings Date"]);
+	
+				if (earningsDate.isBetween(dateRange.from, dateRange.to)) {
+					const quarter = earningsDate.format("Q");
+					const year = earningsDate.format("YYYY");
+	
+					symbolData[year] = {
+						...(symbolData[year] || {}),
+						[quarter]: outputRow["EPS Estimate"] === "-" ? null : Number(outputRow["EPS Estimate"])
+					}
+				}
+			});
+	
+			out[symbol] = symbolData;
+		} catch(e) {
+			console.error(e);
+		}
 
 		return out;
 	}, Promise.resolve({}));
@@ -259,66 +269,69 @@ const getHistoricalGrowth = async (symbols: string[], eps: any, dateRange: DateR
 	const results = await symbols.reduce(async (pr, symbol) => {
 		log(`Fetching historical growth data for ${symbol}`);
 		const symbolEps = eps[symbol];
-
 		const out: { [key: string]: any } = await pr;
 
-		const result = await cacheFetch(`historicalGrowth_${symbol}`, () => yahooFinance.quoteSummary(symbol, {
-			modules: ["incomeStatementHistory", "balanceSheetHistory", "cashflowStatementHistory", "earningsHistory"]
-		}));
-
-		const symbolData: any = {};
-
-		const {
-			balanceSheetHistory,
-			incomeStatementHistory,
-			cashflowStatementHistory,
-		} = result;
-
-		balanceSheetHistory?.balanceSheetStatements.forEach((balance: any) => {
-			const { endDate, totalCurrentAssets, totalAssets, totalLiab } = balance;
-			const year = moment(endDate).format("YYYY");
-
-			if (moment(endDate).isBetween(dateRange.from, dateRange.to)) {
-				set(symbolData, year, {
-					...(symbolData[year] || {}),
-					totalCurrentAssets,
-					totalAssets,
-					reserves: totalLiab
-				});
-			}
-		});
-		incomeStatementHistory?.incomeStatementHistory.forEach((income: any) => {
-			const { endDate, operatingIncome, netIncome } = income;
-			const year = moment(endDate).format("YYYY");
-
-			if (moment(endDate).isBetween(dateRange.from, dateRange.to)) {
-				set(symbolData, year, {
-					...(symbolData[year] || {}),
-					totalIncome: operatingIncome,
-					netProfit: netIncome
-				});
-			}
-		});
-		cashflowStatementHistory?.cashflowStatements.forEach((cashFlow: any) => {
-			const { endDate, totalCashFromOperatingActivities } = cashFlow;
-			const year = moment(endDate).format("YYYY");
-
-			if (moment(endDate).isBetween(dateRange.from, dateRange.to)) {
-				set(symbolData, year, {
-					...(symbolData[year] || {}),
-					netCashFromOperating: totalCashFromOperatingActivities
-				});
-			}
-		});
-
-		Object.keys(symbolData).forEach((year) => {
-			const epsYear: { [key: string]: number } = symbolEps[year] || {};
-			const epsTotal = Object.values(epsYear).reduce((acc: number, eps: number) => acc + eps, 0);
-
-			symbolData[year].eps = epsTotal;
-		})
-
-		out[symbol] = symbolData;
+		try {
+			const result = await cacheFetch(`historicalGrowth_${symbol}`, () => yahooFinance.quoteSummary(symbol, {
+				modules: ["incomeStatementHistory", "balanceSheetHistory", "cashflowStatementHistory", "earningsHistory"]
+			}));
+	
+			const symbolData: any = {};
+	
+			const {
+				balanceSheetHistory,
+				incomeStatementHistory,
+				cashflowStatementHistory,
+			} = result;
+	
+			balanceSheetHistory?.balanceSheetStatements.forEach((balance: any) => {
+				const { endDate, totalCurrentAssets, totalAssets, totalLiab } = balance;
+				const year = moment(endDate).format("YYYY");
+	
+				if (moment(endDate).isBetween(dateRange.from, dateRange.to)) {
+					set(symbolData, year, {
+						...(symbolData[year] || {}),
+						totalCurrentAssets,
+						totalAssets,
+						reserves: totalLiab
+					});
+				}
+			});
+			incomeStatementHistory?.incomeStatementHistory.forEach((income: any) => {
+				const { endDate, operatingIncome, netIncome } = income;
+				const year = moment(endDate).format("YYYY");
+	
+				if (moment(endDate).isBetween(dateRange.from, dateRange.to)) {
+					set(symbolData, year, {
+						...(symbolData[year] || {}),
+						totalIncome: operatingIncome,
+						netProfit: netIncome
+					});
+				}
+			});
+			cashflowStatementHistory?.cashflowStatements.forEach((cashFlow: any) => {
+				const { endDate, totalCashFromOperatingActivities } = cashFlow;
+				const year = moment(endDate).format("YYYY");
+	
+				if (moment(endDate).isBetween(dateRange.from, dateRange.to)) {
+					set(symbolData, year, {
+						...(symbolData[year] || {}),
+						netCashFromOperating: totalCashFromOperatingActivities
+					});
+				}
+			});
+	
+			Object.keys(symbolData).forEach((year) => {
+				const epsYear: { [key: string]: number } = symbolEps[year] || {};
+				const epsTotal = Object.values(epsYear).reduce((acc: number, eps: number) => acc + eps, 0);
+	
+				symbolData[year].eps = epsTotal;
+			})
+	
+			out[symbol] = symbolData;
+		} catch(e) {
+			console.error(e);
+		}
 
 		return out;
 	}, Promise.resolve({}));
@@ -390,19 +403,23 @@ const getRatings = async (symbols: string[]) => {
 		log(`Fetching ratings for ${symbol}`);
 		const out: { [key: string]: any } = await pr;
 
-		const result = await cacheFetch(`ratings_${symbol}`, () => yahooFinance.insights(symbol, { reportsCount: 1 }));
-
-		const { shortTermOutlook, intermediateTermOutlook, longTermOutlook } = result?.instrumentInfo?.technicalEvents || {};
-		const shortTerm = shortTermOutlook?.score || 0;
-		const medTerm = intermediateTermOutlook?.score || 0;
-		const longTerm = longTermOutlook?.score || 0;
-
-		out[symbol] = {
-			avg: arrayAvg([shortTerm, medTerm, longTerm]),
-			shortTerm,
-			medTerm,
-			longTerm,
-		};
+		try {
+			const result = await cacheFetch(`ratings_${symbol}`, () => yahooFinance.insights(symbol, { reportsCount: 1 }));
+	
+			const { shortTermOutlook, intermediateTermOutlook, longTermOutlook } = result?.instrumentInfo?.technicalEvents || {};
+			const shortTerm = shortTermOutlook?.score || 0;
+			const medTerm = intermediateTermOutlook?.score || 0;
+			const longTerm = longTermOutlook?.score || 0;
+	
+			out[symbol] = {
+				avg: arrayAvg([shortTerm, medTerm, longTerm]),
+				shortTerm,
+				medTerm,
+				longTerm,
+			};
+		} catch(e) {
+			console.error(e);
+		}
 
 		return out;
 	}, Promise.resolve({}));
@@ -438,11 +455,16 @@ export const runAnalysis = async (symbols: string | string[] = [], excludeSymbol
 	log(`Getting data for date range: ${from} - ${to}`);
 
 	const price = await getHistoricalPrice(symbols, { to, from });
+	symbols = Object.keys(price);
+	
 	const eps = await getHistoricalEps(symbols, { to, from });
+	symbols = Object.keys(eps);
 
 	const profitEarningRatio = calculateHistoricalPeRatio(price, eps);
 
 	const growthData = await getHistoricalGrowth(symbols, eps, { to, from });
+	symbols = Object.keys(growthData);
+	
 	const growthRate = await calculateGrowthRate(growthData);
 
 	const pastEps = reduce(eps, (acc, years, symbol) => ({
@@ -466,6 +488,8 @@ export const runAnalysis = async (symbols: string | string[] = [], excludeSymbol
 		const historicalPrice = get(price, symbol, {});
 		const futureSymbolPrice = get(futurePrice, symbol, {});
 		const marketPrice = get(quotes, symbol, 0);
+
+		console.log(futureSymbolPrice);
 
 		acc.push({
 			symbol,
