@@ -208,10 +208,13 @@ const getHistoricalEps = async (symbols: string[], dateRange: DateRange): Promis
 				if (earningsDate.isBetween(dateRange.from, dateRange.to)) {
 					const quarter = earningsDate.format("Q");
 					const year = earningsDate.format("YYYY");
+					const epsEstimate = outputRow["EPS Estimate"];
 	
-					symbolData[year] = {
-						...(symbolData[year] || {}),
-						[quarter]: outputRow["EPS Estimate"] === "-" ? null : Number(outputRow["EPS Estimate"])
+					if(epsEstimate && epsEstimate !== "-") {
+						symbolData[year] = {
+							...(symbolData[year] || {}),
+							[quarter]: Number(outputRow["EPS Estimate"])
+						}
 					}
 				}
 			});
@@ -235,7 +238,6 @@ const calculateHistoricalPeRatio = (price: HistoricalData, eps: HistoricalData):
 			const yearVals = Object.values(quarters);
 			const epsVals = Object.values(get(eps, [symbol, year], {}));
 
-
 			// const yearVal = arrayAvg(yearVals);
 			const priceVal = yearVals[yearVals.length - 1];
 			const epsVal = epsVals.reduce((acc3, epsVal) => acc3 + epsVal, 0);
@@ -245,7 +247,7 @@ const calculateHistoricalPeRatio = (price: HistoricalData, eps: HistoricalData):
 			acc2[year] = {
 				price: priceVal,
 				eps: epsVal,
-				pe: priceVal / epsVal
+				pe: epsVal === 0 ? 0 : priceVal / epsVal
 			}
 
 			return acc2;
@@ -356,7 +358,9 @@ const calculateGrowthRate = (growthData: any) => {
 			[key]: cagr(oldest[key], newest[key], diff) * growthWeights[key],
 		}), {});
 
-		acc[symbol] = reduce(weightedCagr, (acc, val) => acc + val, 0);
+		acc[symbol] = reduce(weightedCagr, (acc, val) => {
+			return Number.isFinite(val) ? acc + val : acc;
+		}, 0);
 
 		return acc;
 	}, {});
@@ -455,7 +459,7 @@ export const runAnalysis = async (symbols: string | string[] = [], excludeSymbol
 	log(`Getting data for date range: ${from} - ${to}`);
 
 	const price = await getHistoricalPrice(symbols, { to, from });
-	symbols = Object.keys(price);
+	symbols = Object.keys(price); // refine symbols list to returned symbols, in case of missing data
 	
 	const eps = await getHistoricalEps(symbols, { to, from });
 	symbols = Object.keys(eps);
@@ -488,8 +492,6 @@ export const runAnalysis = async (symbols: string | string[] = [], excludeSymbol
 		const historicalPrice = get(price, symbol, {});
 		const futureSymbolPrice = get(futurePrice, symbol, {});
 		const marketPrice = get(quotes, symbol, 0);
-
-		console.log(futureSymbolPrice);
 
 		acc.push({
 			symbol,
