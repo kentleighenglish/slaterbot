@@ -1,0 +1,10 @@
+{
+  "port": "PORT",
+  "interval": "INTERVAL",
+  "maxPositions": "MAX_POSITIONS",
+  "alpaca": {
+    "key": "ALPACA_KEY",
+    "secret": "ALPACA_SECRET"
+  },
+  "forceCache": "FORCE_CACHE"
+}
