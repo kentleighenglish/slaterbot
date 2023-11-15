@@ -23,6 +23,7 @@ export default class Engine {
 	positions = [];
 	dataset: { [key: string]: any } = {};
 	latestAnalysis: any[] = [];
+	checkRunning: boolean = false;
 
 	get output() {
 		return {
@@ -61,16 +62,17 @@ export default class Engine {
 
 		await this.watchlist.assertWatchlist();
 
-		this.runCheck();
-		const job = new CronJob(
-			interval,
-			function () {
-				console.log('You will see this message every second');
-			}, // onTick
-			null, // onComplete
-			true, // start
-			'America/Los_Angeles' // timeZone
-		);
+		// this.runCheck();
+		const job = new CronJob(interval, async () => {
+			if (!this.checkRunning) {
+				this.checkRunning = true;
+
+				await this.runCheck();
+				this.checkRunning = false;
+			}
+		});
+
+		job.start();
 		log("Engine started");
 	}
 
@@ -87,8 +89,8 @@ export default class Engine {
 			// const analysis = await runAnalysis();
 
 		}
-		log("Dispatching update");
 
+		log("Dispatching update");
 		this.dispatch(this.output);
 	}
 
