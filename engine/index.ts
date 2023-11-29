@@ -97,9 +97,13 @@ export default class Engine {
 	async getPositions(): Promise<any[]> {
 		const alpacaPositions = await this._alpaca.getPositions();
 
-		console.log(alpacaPositions);
-
-		return [];
+		return alpacaPositions.map((pos: any) => ({
+			id: pos.asset_id,
+			symbol: pos.symbol,
+			costBasis: pos.cost_basis,
+			marketValue: pos.market_value,
+			unrealisedProfitLoss: pos.unrealized_pl,
+		}));
 	}
 
 	dispatch(data: object) {
