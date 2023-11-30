@@ -22,12 +22,14 @@ interface AlpacaPosition {
 	costBasis: number;
 	marketValue: number;
 	unrealisedProfitLoss: number;
+	cacheKey: string;
 }
 
 interface PositionData {
 	stop: number;
 	hardStop: number;
 	confidence: number;
+	gracePeriod: string;
 }
 
 export default class Engine {
@@ -125,7 +127,8 @@ export default class Engine {
 			symbol: pos.symbol,
 			costBasis: pos.cost_basis, // purchase cost
 			marketValue: pos.market_value, // current price
-			unrealisedProfitLoss: pos.unrealized_pl, // profit/loss made on position
+			unrealisedProfitLoss: pos.unrealized_pl, // profit/loss made on position,
+			cacheKey: `positionData_${pos.symbol}`,
 		}));
 	}
 
@@ -143,8 +146,7 @@ export default class Engine {
 	}
 
 	async checkPosition(position: AlpacaPosition): Promise<AlpacaPosition | null> {
-		const key = `positionData_${position.symbol}`;
-		const positionData: PositionData = cache.get(key);
+		const positionData: PositionData = cache.get(position.cacheKey);
 
 		const clear = async () => {
 			await this.closePosition(position);
@@ -156,12 +158,17 @@ export default class Engine {
 		}
 
 		if (position.marketValue <= positionData.stop) {
-			if (position.marketValue <= positionData.hardStop) {
+			if (
+				position.marketValue <= positionData.hardStop ||
+				moment().isAfter(positionData.gracePeriod)
+			) {
 				return await clear();
 			}
 		}
 
-		return null;
+		await this.updatePositionData(position);
+
+		return position;
 	}
 
 	async closePosition(position: AlpacaPosition): Promise<void> {
@@ -172,7 +179,13 @@ export default class Engine {
 		}
 	}
 
-	async openPosition(): Promise<void> {
+	async updatePositionData(position: AlpacaPosition): Promise<void> {
+		const positionData: PositionData = cache.get(position.cacheKey);
+
+		if (position.marketValue > )
+	}
+
+	async openPosition(symbol: any): Promise<void> {
 
 	}
 
