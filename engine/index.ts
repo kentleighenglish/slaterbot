@@ -4,11 +4,31 @@ import { Server } from "socket.io";
 import moment from "moment";
 import { CronJob } from "cron";
 import config from "config";
+import fileCache from "node-file-cache";
+import { resolve } from "path";
 
 import Watchlist from "./watchlist";
 const log = debugFunc("bot:engine");
 
 import { runAnalysis } from "./analysis";
+
+const cache = fileCache.create({
+	file: resolve("./.engine.cache")
+});
+
+interface AlpacaPosition {
+	id: string;
+	symbol: string;
+	costBasis: number;
+	marketValue: number;
+	unrealisedProfitLoss: number;
+}
+
+interface PositionData {
+	stop: number;
+	hardStop: number;
+	confidence: number;
+}
 
 export default class Engine {
 	_alpaca: Alpaca;
@@ -62,12 +82,15 @@ export default class Engine {
 
 		await this.watchlist.assertWatchlist();
 
-		// this.runCheck();
 		const job = new CronJob(interval, async () => {
 			if (!this.checkRunning) {
 				this.checkRunning = true;
 
-				await this.runCheck();
+				let clock = await this._alpaca.getClock();
+				if (clock.is_open) {
+					await this.runCheck();
+				}
+
 				this.checkRunning = false;
 			}
 		});
@@ -83,9 +106,9 @@ export default class Engine {
 
 		const positions = await this.getPositions();
 
-		// @todo clear positions
+		const updatedPositions: AlpacaPosition[] = await this.checkPositions(positions);
 
-		if (positions.length < maxPositions) {
+		if (updatedPositions.length < maxPositions) {
 			// const analysis = await runAnalysis();
 
 		}
@@ -94,16 +117,63 @@ export default class Engine {
 		this.dispatch(this.output);
 	}
 
-	async getPositions(): Promise<any[]> {
+	async getPositions(): Promise<AlpacaPosition[]> {
 		const alpacaPositions = await this._alpaca.getPositions();
 
 		return alpacaPositions.map((pos: any) => ({
 			id: pos.asset_id,
 			symbol: pos.symbol,
-			costBasis: pos.cost_basis,
-			marketValue: pos.market_value,
-			unrealisedProfitLoss: pos.unrealized_pl,
+			costBasis: pos.cost_basis, // purchase cost
+			marketValue: pos.market_value, // current price
+			unrealisedProfitLoss: pos.unrealized_pl, // profit/loss made on position
 		}));
+	}
+
+	async checkPositions(positions: AlpacaPosition[]): Promise<AlpacaPosition[]> {
+		console.log(positions);
+		return await positions.reduce((acc, pos: AlpacaPosition) => {
+			const result = this.checkPosition(pos);
+
+			if (!!result) {
+				acc.push(pos);
+			}
+
+			return acc;
+		}, [] as AlpacaPosition[]);
+	}
+
+	async checkPosition(position: AlpacaPosition): Promise<AlpacaPosition | null> {
+		const key = `positionData_${position.symbol}`;
+		const positionData: PositionData = cache.get(key);
+
+		const clear = async () => {
+			await this.closePosition(position);
+			return null;
+		}
+
+		if (!positionData) {
+			return await clear();
+		}
+
+		if (position.marketValue <= positionData.stop) {
+			if (position.marketValue <= positionData.hardStop) {
+				return await clear();
+			}
+		}
+
+		return null;
+	}
+
+	async closePosition(position: AlpacaPosition): Promise<void> {
+		try {
+			await this._alpaca.closePosition(position.symbol);
+		} catch(e) {
+			log("Error while closing position", e);
+		}
+	}
+
+	async openPosition(): Promise<void> {
+
 	}
 
 	dispatch(data: object) {

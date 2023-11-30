@@ -21,7 +21,7 @@ interface DateRange {
 }
 
 const cache = fileCache.create({
-	file: resolve("./.cache")
+	file: resolve("./.analysis.cache")
 });
 
 const cacheFetch = async (key: string, fetchFunc: () => any) => {
