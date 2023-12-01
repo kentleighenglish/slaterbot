@@ -91,6 +91,8 @@ export default class Engine {
 				let clock = await this._alpaca.getClock();
 				if (clock.is_open) {
 					await this.runCheck();
+				} else {
+					log("Market closed");
 				}
 
 				this.checkRunning = false;
@@ -111,8 +113,9 @@ export default class Engine {
 		const updatedPositions: AlpacaPosition[] = await this.checkPositions(positions);
 
 		if (updatedPositions.length < maxPositions) {
-			// const analysis = await runAnalysis();
+			const analysis = await runAnalysis();
 
+			console.log(analysis);
 		}
 
 		log("Dispatching update");
@@ -133,7 +136,6 @@ export default class Engine {
 	}
 
 	async checkPositions(positions: AlpacaPosition[]): Promise<AlpacaPosition[]> {
-		console.log(positions);
 		return await positions.reduce((acc, pos: AlpacaPosition) => {
 			const result = this.checkPosition(pos);
 
@@ -154,7 +156,7 @@ export default class Engine {
 		}
 
 		if (!positionData) {
-			return await clear();
+			this.updatePositionData(position);
 		}
 
 		if (position.marketValue <= positionData.stop) {
