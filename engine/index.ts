@@ -181,8 +181,19 @@ export default class Engine {
 
 	async updatePositionData(position: AlpacaPosition): Promise<void> {
 		const positionData: PositionData = cache.get(position.cacheKey);
+		const conf = positionData.confidence;
+		const stopAllowance = .2;
+		const hardStopAllowance = .5;
 
-		if (position.marketValue > )
+		const modStopAllowance = (1 - stopAllowance) * conf;
+		const modHardStopAllowance = (1 - hardStopAllowance) * conf;
+
+		const profitLoss = position.marketValue - position.costBasis;
+
+		positionData.stop = profitLoss * modStopAllowance;
+		positionData.hardStop = profitLoss * modHardStopAllowance;
+
+		cache.set(position.cacheKey, positionData);
 	}
 
 	async openPosition(symbol: any): Promise<void> {
