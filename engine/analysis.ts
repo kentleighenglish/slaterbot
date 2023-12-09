@@ -96,18 +96,26 @@ const parseEarningsDate = (earningsDate: string): Moment => {
 };
 
 // Get popular/top stocks, maybe top 20 at least
-const getTrending = async (excludeSymbols: string[] = []) => {
+const getTrending = async (excludeSymbols: string[] = [], count: number = 20): Promise<string[]> => {
 	const minCount = 10;
 	excludeSymbols.push(":entitySlug");
 	excludeSymbols.push("CL=F");
 
 	log("Fetching trending");
 	const { quotes = [] } = await yahooFinance.trendingSymbols("US", {
-		count: 20,
+		count,
 		lang: "en-US",
 	});
 
-	return quotes.map((quote) => quote?.symbol).filter(s => !excludeSymbols.includes(s));
+	let parsed = quotes.map((quote) => quote?.symbol).filter(s => !excludeSymbols.includes(s));
+
+	if (parsed.length < count) {
+		const more = await getTrending(parsed, count - parsed.length);
+
+		parsed = [...parsed, ...more];
+	}
+
+	return parsed;
 };
 
 type PriceRow = { [key: string]: any };
@@ -449,9 +457,9 @@ const getQuotes = async (symbols: string[]) => {
 	return results;
 }
 
-export const runAnalysis = async (symbols: string | string[] = [], excludeSymbols: string[] = []) => {
+export const runAnalysis = async (symbols: string | string[] = [], excludeSymbols: string[] = [], count: number = 20) => {
 	if (!symbols.length) {
-		symbols = await getTrending(excludeSymbols);
+		symbols = await getTrending(excludeSymbols, count);
 		log("Trending:", symbols);
 	} else if (!Array.isArray(symbols)) {
 		symbols = [symbols];
@@ -490,6 +498,8 @@ export const runAnalysis = async (symbols: string | string[] = [], excludeSymbol
 
 	// Return list of stocks with ratings
 
+	symbols = symbols.slice(0, count);
+
 	return symbols.reduce((acc: any, symbol: string) => {
 		const rating = get(ratings, symbol, {});
 		const historicalPrice = get(price, symbol, {});
@@ -505,5 +515,5 @@ export const runAnalysis = async (symbols: string | string[] = [], excludeSymbol
 		});
 
 		return acc;
-	}, []).sort((a: any, b: any) => b.rating.avg - a.rating.avg);
+	}, []).sort((a: any, b: any) => (b.rating.avg + b.rating.shortTerm) - (a.rating.avg + a.rating.shortTerm));
 };

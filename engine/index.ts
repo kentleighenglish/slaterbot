@@ -42,10 +42,11 @@ export default class Engine {
 	watchers = {};
 	watchlist: Watchlist;
 
-	positions = [];
+	positions: AlpacaPosition[] = [];
 	dataset: { [key: string]: any } = {};
 	latestAnalysis: any[] = [];
 	checkRunning: boolean = false;
+	maxPositions: number;
 
 	get output() {
 		return {
@@ -59,6 +60,8 @@ export default class Engine {
 	}
 
 	constructor(io: Server) {
+		this.maxPositions = config.get("maxPositions");
+
 		const key =  config.get("alpaca.key");
 		const secret =  config.get("alpaca.secret");
 
@@ -104,18 +107,30 @@ export default class Engine {
 	}
 
 	async runCheck() {
-		const maxPositions: number = config.get("maxPositions");
 		log("Running check");
 		this.account = await this._alpaca.getAccount();
 
-		const positions = await this.getPositions();
+		this.positions = await this.getPositions();
 
-		const updatedPositions: AlpacaPosition[] = await this.checkPositions(positions);
+		const updatedPositions: AlpacaPosition[] = await this.checkPositions(this.positions);
 
-		if (updatedPositions.length < maxPositions) {
-			const analysis = await runAnalysis();
+		if (updatedPositions.length < this.maxPositions) {
+			const missing = this.maxPositions - updatedPositions.length;
+			const existing = updatedPositions.map(pos => pos.symbol);
 
-			console.log(analysis);
+			const analysis = await runAnalysis([], existing, missing);
+			const totalRating = analysis.reduce((acc: number, pos: any) => (acc + pos?.rating?.avg || 0), 0);
+			const buyingPowerSplit = this.account?.buying_power / totalRating;
+
+			if (totalRating === 0) {
+				throw "There was an issue with rating averages";
+			}
+
+			const parsed = analysis.map((pos: any) => ({
+				...pos,
+				confidence: pos.rating.avg / 5,
+				purchaseAmount: buyingPowerSplit * (pos?.rating?.avg || 0)
+			}));
 		}
 
 		log("Dispatching update");
@@ -136,7 +151,8 @@ export default class Engine {
 	}
 
 	async checkPositions(positions: AlpacaPosition[]): Promise<AlpacaPosition[]> {
-		return await positions.reduce((acc, pos: AlpacaPosition) => {
+		return await positions.reduce(async (pr, pos: AlpacaPosition) => {
+			const acc = await pr;
 			const result = this.checkPosition(pos);
 
 			if (!!result) {
@@ -144,7 +160,7 @@ export default class Engine {
 			}
 
 			return acc;
-		}, [] as AlpacaPosition[]);
+		}, Promise.resolve([] as AlpacaPosition[]));
 	}
 
 	async checkPosition(position: AlpacaPosition): Promise<AlpacaPosition | null> {
@@ -175,6 +191,8 @@ export default class Engine {
 
 	async closePosition(position: AlpacaPosition): Promise<void> {
 		try {
+			// @todo check there's no existing order to close position
+
 			await this._alpaca.closePosition(position.symbol);
 		} catch(e) {
 			log("Error while closing position", e);
@@ -198,8 +216,16 @@ export default class Engine {
 		cache.set(position.cacheKey, positionData);
 	}
 
-	async openPosition(symbol: any): Promise<void> {
+	async openPosition(data: any): Promise<void> {
+		const { symbol, purchaseAmount } = data;
 
+		await this._alpaca.createOrder({
+			symbol,
+			notional: purchaseAmount,
+			side: "buy",
+			type: "market",
+			time_in_force: "day",
+		});
 	}
 
 	dispatch(data: object) {
