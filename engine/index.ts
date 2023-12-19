@@ -137,6 +137,10 @@ export default class Engine {
 				).toISOString(),
 				purchaseAmount: buyingPowerSplit * (pos?.rating?.avg || 0)
 			}));
+
+			for(let newPos of parsed) {
+				await this.openPosition(newPos);
+			}
 		}
 
 		log("Dispatching update");
@@ -201,7 +205,7 @@ export default class Engine {
 			return null;
 		}
 
-		if (!positionData) {
+		if (!positionData || (positionData && !positionData.stop)) {
 			this.updatePositionData(position);
 		}
 
@@ -253,7 +257,13 @@ export default class Engine {
 	}
 
 	async openPosition(data: any): Promise<void> {
-		const { symbol, purchaseAmount } = data;
+		const { symbol, purchaseAmount, gracePeriod, confidence } = data;
+		log(`Opening new position: ${symbol}`);
+
+		cache.set(`positionData_${symbol}`, {
+			confidence,
+			gracePeriod,
+		});
 
 		await this._alpaca.createOrder({
 			symbol,
