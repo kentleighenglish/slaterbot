@@ -22,6 +22,7 @@ interface AlpacaPosition {
 	costBasis: number;
 	marketValue: number;
 	unrealisedProfitLoss: number;
+	active?: boolean;
 	cacheKey: string;
 }
 
@@ -146,13 +147,37 @@ export default class Engine {
 			costBasis: pos.cost_basis, // purchase cost
 			marketValue: pos.market_value, // current price
 			unrealisedProfitLoss: pos.unrealized_pl, // profit/loss made on position,
+			active: true,
 			cacheKey: `positionData_${pos.symbol}`,
 		}));
 	}
 
 	async checkPositions(positions: AlpacaPosition[]): Promise<AlpacaPosition[]> {
+		const orders = await this._alpaca.getOrders();
+
+		const buyOrders = orders
+			.filter((order: any) => order.side === "buy")
+			.reduce((acc: AlpacaPosition[], order: any) => ([
+			...acc,
+			{
+				id: order.asset_id || order.id,
+				symbol: order.symbol,
+				costBasis: null,
+				marketValue: null,
+				unrealisedProfitLoss: null,
+				active: false,
+				cacheKey: `positionData_${order.symbol}`,
+			}
+		]), [] as AlpacaPosition[]);
+
 		return await positions.reduce(async (pr, pos: AlpacaPosition) => {
 			const acc = await pr;
+			const matchingOrder = orders.find((order: any) => order.symbol === pos.symbol);
+
+			if (matchingOrder && matchingOrder.side === "sell") {
+				return acc;
+			}
+
 			const result = this.checkPosition(pos);
 
 			if (!!result) {
@@ -160,7 +185,7 @@ export default class Engine {
 			}
 
 			return acc;
-		}, Promise.resolve([] as AlpacaPosition[]));
+		}, Promise.resolve(buyOrders as AlpacaPosition[]));
 	}
 
 	async checkPosition(position: AlpacaPosition): Promise<AlpacaPosition | null> {
@@ -191,8 +216,6 @@ export default class Engine {
 
 	async closePosition(position: AlpacaPosition): Promise<void> {
 		try {
-			// @todo check there's no existing order to close position
-
 			await this._alpaca.closePosition(position.symbol);
 		} catch(e) {
 			log("Error while closing position", e);
