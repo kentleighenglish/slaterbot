@@ -2,6 +2,7 @@
   "port": "PORT",
   "interval": "INTERVAL",
   "maxPositions": "MAX_POSITIONS",
+  "maxGracePeriod": "MAX_GRACE_PERIOD",
   "alpaca": {
     "key": "ALPACA_KEY",
     "secret": "ALPACA_SECRET"

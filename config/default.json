@@ -2,6 +2,7 @@
   "port": 3000,
   "interval": "0 * * * * *",
   "maxPositions": 10,
+  "maxGracePeriod": 7,
   "alpaca": {
     "key": "",
     "secret": ""

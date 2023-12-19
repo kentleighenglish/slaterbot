@@ -110,6 +110,7 @@ export default class Engine {
 	async runCheck() {
 		log("Running check");
 		this.account = await this._alpaca.getAccount();
+		const maxGracePeriod: number = config.get("maxGracePeriod");
 
 		this.positions = await this.getPositions();
 
@@ -130,6 +131,10 @@ export default class Engine {
 			const parsed = analysis.map((pos: any) => ({
 				...pos,
 				confidence: pos.rating.avg / 5,
+				gracePeriod: moment().add(
+					Math.floor((pos.rating.avg / 5) * maxGracePeriod),
+					"days"
+				).toISOString(),
 				purchaseAmount: buyingPowerSplit * (pos?.rating?.avg || 0)
 			}));
 		}
@@ -223,20 +228,28 @@ export default class Engine {
 	}
 
 	async updatePositionData(position: AlpacaPosition): Promise<void> {
-		const positionData: PositionData = cache.get(position.cacheKey);
-		const conf = positionData.confidence;
+		const positionData: PositionData = cache.get(position.cacheKey) || {};
+		const confidence = positionData?.confidence || 0.5;
+		const maxGracePeriod: number = config.get("maxGracePeriod");
+		const gracePeriod = moment().add(Math.floor(confidence * maxGracePeriod), "days").toISOString();
+
 		const stopAllowance = .2;
 		const hardStopAllowance = .5;
 
-		const modStopAllowance = (1 - stopAllowance) * conf;
-		const modHardStopAllowance = (1 - hardStopAllowance) * conf;
+		const modStopAllowance = (1 - stopAllowance) * confidence;
+		const modHardStopAllowance = (1 - hardStopAllowance) * confidence;
 
 		const profitLoss = position.marketValue - position.costBasis;
 
-		positionData.stop = profitLoss * modStopAllowance;
-		positionData.hardStop = profitLoss * modHardStopAllowance;
+		const newPositionData = {
+			...positionData,
+			stop: profitLoss * modStopAllowance,
+			hardStop: profitLoss * modHardStopAllowance,
+			gracePeriod,
+			confidence,
+		}
 
-		cache.set(position.cacheKey, positionData);
+		cache.set(position.cacheKey, newPositionData);
 	}
 
 	async openPosition(data: any): Promise<void> {
