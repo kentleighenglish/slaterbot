@@ -231,7 +231,7 @@ export default class Engine {
 		const positionData: PositionData = cache.get(position.cacheKey) || {};
 		const confidence = positionData?.confidence || 0.5;
 		const maxGracePeriod: number = config.get("maxGracePeriod");
-		const gracePeriod = moment().add(Math.floor(confidence * maxGracePeriod), "days").toISOString();
+		const gracePeriod = positionData?.gracePeriod || moment().add(Math.floor(confidence * maxGracePeriod), "days").toISOString();
 
 		const stopAllowance = .2;
 		const hardStopAllowance = .5;
