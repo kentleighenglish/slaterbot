@@ -7,5 +7,5 @@
     "key": "",
     "secret": ""
   },
-  "forceCache": false
+  "useCache": false
 }

@@ -26,9 +26,9 @@ const cache = fileCache.create({
 
 const cacheFetch = async (key: string, fetchFunc: () => any) => {
 	let response = null;
-	const forceCache = config.get("forceCache");
+	const useCache = config.get("useCache");
 
-	if (!!forceCache) {
+	if (!!useCache) {
 		log(`Cache active, getting: ${key}`);
 		response = cache.get(key);
 	}
@@ -501,18 +501,21 @@ export const runAnalysis = async (symbols: string | string[] = [], excludeSymbol
 	symbols = symbols.slice(0, count);
 
 	return symbols.reduce((acc: any, symbol: string) => {
-		const rating = get(ratings, symbol, {});
+		const rating: any = get(ratings, symbol, {});
 		const historicalPrice = get(price, symbol, {});
 		const futureSymbolPrice = get(futurePrice, symbol, {});
 		const marketPrice = get(quotes, symbol, 0);
 
-		acc.push({
-			symbol,
-			rating,
-			historicalPrice,
-			futurePrice: futureSymbolPrice,
-			marketPrice,
-		});
+		if (rating?.avg && rating?.avg > 0) {
+			acc.push({
+				symbol,
+				rating,
+				historicalPrice,
+				futurePrice: futureSymbolPrice,
+				marketPrice,
+			});
+		}
+
 
 		return acc;
 	}, []).sort((a: any, b: any) => (b.rating.avg + b.rating.shortTerm) - (a.rating.avg + a.rating.shortTerm));

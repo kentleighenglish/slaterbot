@@ -44,20 +44,25 @@ export default class Engine {
 	watchlist: Watchlist;
 
 	positions: AlpacaPosition[] = [];
-	dataset: { [key: string]: any } = {};
 	latestAnalysis: any[] = [];
 	checkRunning: boolean = false;
 	maxPositions: number;
 
+	get positionsData(): { [key: string]: PositionData } {
+		return this.positions.reduce((acc, pos) => ({
+			...acc,
+			[pos.symbol]: cache.get(pos.cacheKey) || {},
+		}), {});
+	}
+
 	get output() {
 		return {
 			positions: this.positions,
-			dataset: this.dataset,
+			positionsData: this.positionsData,
 			balance: this.account?.equity,
 			cash: this.account?.cash,
 			buyingPower: this.account?.buying_power
 		};
-
 	}
 
 	constructor(io: Server) {
@@ -97,11 +102,22 @@ export default class Engine {
 					await this.runCheck();
 				} else {
 					log("Market closed");
+					job.stop();
+					marketClosedJob.start();
 				}
 
 				this.checkRunning = false;
 			}
 		});
+
+		const marketClosedJob = new CronJob("0 0 * * * *", async () => {
+			let clock = await this._alpaca.getClock();
+			log("Checking if market still closed");
+			if (clock.is_open) {
+				job.start();
+				marketClosedJob.stop();
+			}
+		})
 
 		job.start();
 		log("Engine started");
@@ -121,6 +137,7 @@ export default class Engine {
 			const existing = updatedPositions.map(pos => pos.symbol);
 
 			const analysis = await runAnalysis([], existing, missing);
+			log("Analysis complete");
 			const totalRating = analysis.reduce((acc: number, pos: any) => (acc + pos?.rating?.avg || 0), 0);
 			const buyingPowerSplit = this.account?.buying_power / totalRating;
 
@@ -260,26 +277,33 @@ export default class Engine {
 		const { symbol, purchaseAmount, gracePeriod, confidence } = data;
 		log(`Opening new position: ${symbol}`);
 
-		cache.set(`positionData_${symbol}`, {
-			confidence,
-			gracePeriod,
-		});
+		try {
+			cache.set(`positionData_${symbol}`, {
+				confidence,
+				gracePeriod,
+			});
 
-		await this._alpaca.createOrder({
-			symbol,
-			notional: purchaseAmount,
-			side: "buy",
-			type: "market",
-			time_in_force: "day",
-		});
+			await this._alpaca.createOrder({
+				symbol,
+				notional: purchaseAmount,
+				side: "buy",
+				type: "market",
+				time_in_force: "day",
+			});
+			log(`Order created for ${symbol}`);
+		} catch(e: any) {
+			log(`Failed to open order for ${symbol}: `, e);
+			return;
+		}
 	}
 
 	dispatch(data: object) {
+		console.log(this._subscribers);
 		for (var i = 0; i < this._subscribers.length; i++)
 		this._subscribers[i](data);
 	}
 
-	subscribe(callback: (data: any) => {}) {
+	subscribe(callback: (data: any) => void) {
 		this._subscribers.push(callback);
 	}
 }

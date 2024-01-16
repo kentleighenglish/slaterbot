@@ -13,12 +13,11 @@ export default defineNuxtModule((options, nuxt) => {
 
 		io.on("connection", (socket) => {
 			console.log("CONNECTION");
-
 			socket.emit("update", engine.output);
 		});
 
-		engine.subscribe((data: any) => {
-			io.emit("update", data);
+		engine.subscribe((output: any) => {
+			io.emit("update", output);
 		});
 	})
 })
